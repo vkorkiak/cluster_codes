@@ -23,6 +23,8 @@ if reply ~= 'y'
   pause
 end
 
+workdir = pwd;
+fprintf('The working directory is: %s\n', workdir);
 
 
 nsimulbatch = 128;
@@ -31,7 +33,7 @@ ba_stat.nsimulbatch     = nsimulbatch;
 ba_uivals.max_batchsize = 10000;
 ba_stat.n_basescriptfiles = 1;
 ba_stat.basescriptfiles = ...
-    {['/home/strknd/korki101/workcodes/matlabao/' basefile]};
+    {[workdir '/' basefile]};
 
 % Create a set of batch files.
 ba_bx
