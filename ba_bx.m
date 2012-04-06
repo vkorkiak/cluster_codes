@@ -8,7 +8,7 @@
 %
 function ba_bx
  
-global baui ba_uivals ba_stat
+global ba_stat
 
 % Clear previously possibly chosen files
 pe_stat.fnamexe_main = '';

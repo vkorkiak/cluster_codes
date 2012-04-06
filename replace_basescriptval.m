@@ -1,12 +1,13 @@
 %-
-% \file replace_basescriptval.pro  \ingroup SCRIPT_TOOLS
+% \file replace_basescriptval.pro
 %
 % \brief Does the recursive part in basescript expansion.
 %
 function [batchlen, all_nicks, all_batchfiles] = ...
       replace_basescriptval(all_lines, path, fname, curnick, ...
-			    batchlen, all_nicks, all_batchfiles)
-global baui ba_uivals;
+			    batchlen, all_nicks, all_batchfiles, dowrite)
+
+%fprintf('%s\n', curnick);
 
 nlines = length(all_lines);
 
@@ -40,7 +41,7 @@ for i=1:nlines
 	% Continue expansion
 	[batchlen, all_nicks, all_batchfiles] = ...
 	    replace_basescriptval(all_lines2, path, fname, curnick2, ...
-				  batchlen, all_nicks, all_batchfiles);
+				  batchlen, all_nicks, all_batchfiles, dowrite);
       end
     end
     return    
@@ -66,7 +67,9 @@ end
 
 
 % Write the new file
-if 1==1
+if dowrite
+  fprintf('%s\n', fname2);
+
   fid = fopen(fname2, 'wt');
   fprintf(fid, '%% AUTOMATICALLY GENERATED FROM FILE:\n');
   fprintf(fid, '%% %s\n', fname);
