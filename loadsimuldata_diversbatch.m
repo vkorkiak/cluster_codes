@@ -1,7 +1,7 @@
 %
 % Loads the simulation data.
 %
-function [simdatao orgvals1 orgvals2] = loadsimuldata_diversbatch(fnames, orgvars, dirs)
+function [simdatao varargout] = loadsimuldata_diversbatch(fnames, orgvars, dirs)
 
 if ~exist('dirs', 'var')
   dirs = {'./results'};
@@ -14,6 +14,7 @@ ndims = length(orgvars);
 
 simdata = cell(length(fnames), 1);
 orgvals = zeros(length(fnames), ndims);
+founds  = zeros(length(fnames), 1);
 
 for i=1:length(fnames)
 
@@ -27,6 +28,7 @@ for i=1:length(fnames)
       if exist(matname, 'file')
 	found=1;
 	simdata{i} = load(matname);
+	founds(i) = 1;
       end
     
       for oi=1:ndims
@@ -44,9 +46,9 @@ end
 
 % The simulation results should be re-arranged based on orgvars
 nds = zeros(ndims,1);
-for i=1:ndims
-  uniqvals = unique(orgvals(:,i));
-  nds(i) = length(find(uniqvals ~= 0));
+for i=1:ndims  
+  uniqvals = unique(orgvals(founds==1,i));
+  nds(i) = length(uniqvals);
 end
 
 if 1==0
@@ -58,8 +60,30 @@ if 1==0
   jee3 = reshape(vals3, nds);
 end
 
-simdatao = reshape(simdata, nds);
-orgvals1 = reshape(orgvals(:,1), nds);
-orgvals2 = reshape(orgvals(:,2), nds);
+
+if prod(nds) == length(simdata)
+  simdatao = reshape(simdata, nds);
+
+  nout = max(nargout,1) - 1;
+  maxnout = size(orgvals, 2);
+  nuout = max([nout, maxnout]);
+  for i=1:nuout
+    varargout{i} = reshape(orgvals(:,i), nds);
+  end
+else
+  % Something wrong with the parameters!
+  fprintf('loadsimuldata_diversbatch: Something wrong!!\n');
+  simdatao = simdata;
+
+  nout = max(nargout,1) - 1;
+  maxnout = size(orgvals, 2);
+  nuout = max([nout, maxnout]);
+  for i=1:nuout
+    varargout{i} = orgvals(:,i);
+  end
+  
+end
+  
+
 
 end
