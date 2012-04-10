@@ -30,7 +30,7 @@ for i=1:length(fnames)
       end
     
       for oi=1:ndims
-	orgvals(i, oi) = findval(paraname, orgvars{oi});
+	orgvals(i, oi) = find_val(paraname, orgvars{oi});
 	fprintf('%d>  %s:  %f\n', i, orgvars{oi}, orgvals(i, oi));	
       end
       break;

@@ -16,7 +16,6 @@ c/test/heap-test
 *.in
 config.*
 configure
-Makefile
 aclocal.m4
 build-aux/
 autom4te.cache/
