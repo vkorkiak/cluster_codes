@@ -4,6 +4,8 @@
 % Run this:
 %  create_batches
 
+more off
+
 if ~exist('nsimulbatch', 'var')
   nsimulbatch=128;
   fprintf('nsimulbatch was set to %d. Please set it is nice!!\n', nsimulbatch);
