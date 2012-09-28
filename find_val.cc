@@ -117,6 +117,8 @@ DEFUN_DLD(find_val, args, nargout,
       while (str[valst + nval] != '%' && 
 	     str[valst + nval] != '#' && 
 	     str[valst + nval] != ';' && 
+	     str[valst + nval] != 13  &&
+	     str[valst + nval] != 10  &&
 	     valst + nval<nstr) {
 	// printf("-%c-<%d>-", str[valst + nval], str[valst + nval]);
 	valstr[nval] = str[valst + nval];
@@ -132,13 +134,16 @@ DEFUN_DLD(find_val, args, nargout,
  
 
   if (found) {
-    double numval = atof(valstr);
-    // printf("val (%s): %e\n", valstr, numval);
+    if (nonum==0) {
+      double numval = atof(valstr);
+      // printf("val (%s): %e\n", valstr, numval);
 
-
-    NDArray theVal(1);
-    theVal(0) = numval;
-    return octave_value(theVal);
+      NDArray theVal(1);
+      theVal(0) = numval;
+      return octave_value(theVal);
+    } else {
+      return octave_value(valstr);
+    }
 
   } else {
     NDArray theVal;

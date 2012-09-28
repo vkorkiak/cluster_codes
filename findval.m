@@ -53,12 +53,16 @@ while ~feof(unit)
 end
 fclose(unit);
 
-if iscell(uvals)
-  val = uvals{1};
+if exist('uvals', 'var')
+  if iscell(uvals)
+    val = uvals{1};
+  else
+    val = uvals;
+  end
+  vals = uvals;
 else
-  val = uvals;
+  error('Unknown var (%s) in file %s\n', varname, fname);
 end
-vals = uvals;
 
 %val
 %vals
