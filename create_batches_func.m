@@ -4,9 +4,9 @@
 %  create_batches(basefile, modparams)
 %
 function [batchlen, all_nicks, all_batchfiles] = ...
-      create_batches_func(basefile, modvals, nowrite)
+      create_batches_func(basefile, modvals, dowrite, runcmd)
 
-if ~exist('nowrite', 'var')
+if ~exist('dowrite', 'var')
   dowrite=1;  % By default, write to disk
 else
   dowrite=0;  % Do not write the scripts to disk
@@ -15,6 +15,12 @@ end
 if ~exist('basefile', 'var')
   error('basefile not defined');
 end
+
+if ~exist('runcmd', 'var')
+  runcmd = 'octave'; % Default run command
+end
+
+
 workdir = pwd;
 fprintf('The working directory is: %s\n', workdir);
 
@@ -59,7 +65,7 @@ if dowrite
     fprintf(fid, ['#PBS -V \n']);
     fprintf(fid, ['cd $PBS_O_WORKDIR \n']);
     fprintf(fid, ['# Launch application \n']);
-    fprintf(fid, ['octave ' batchname ' > ' batchname '.log\n']);
+    fprintf(fid, [runcmd ' ' batchname ' > ' batchname '.log\n']);
     fprintf(fid, ['\n']);
     fprintf(fid, ['\n']);
     fclose(fid);

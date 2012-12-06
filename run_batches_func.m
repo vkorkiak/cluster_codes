@@ -3,8 +3,10 @@
 %
 function run_batches_func(batchnames, nsimulbatch, varargin)
 
-usemaster=0;
-useqsub=1;
+usemaster = 0;
+useqsub   = 1;
+runcmd    = 'octave'; % default
+resufile  = '_results.mat' 
 
 sti=1;
 while sti <= length(varargin)
@@ -16,6 +18,12 @@ while sti <= length(varargin)
     usemaster = 1;
     useqsub   = 0;
     sti = sti+1;
+  elseif strcmp(varargin{sti}, 'runcmd')
+    runcmd = varargin{sti+1};
+    sti = sti+2;
+  elseif strcmp(varargin{sti}, 'resufile')
+    resufile = varargin{sti+1};
+    sti = sti+2;
   else
     fprintf('invalid argument list.')
     return;
@@ -39,7 +47,7 @@ for i=1:nbatch
   while sum(batchruns) >= nsimulbatch
     for u=1:nsimulbatch
       if batchruns(u)
-	outfile = ['./results/' file_basename(batchnames{batchinds(u)}) '_results.mat']; 
+	outfile = ['./results/' file_basename(batchnames{batchinds(u)}) resufile]; 
 	if exist(outfile, 'file')
 	  batchruns(u) = 0;
 	end
@@ -63,7 +71,7 @@ for i=1:nbatch
   end
   if usemaster
     fprintf('%d: --- launching on master %s...\n', i, batchnames{i});
-    system(['cd results ; octave ' file_basename(batchnames{i})]);        
+    system(['cd results ; ' runcmd ' ' file_basename(batchnames{i})]);        
   end
 
   batchinds(batchpos) = i;
