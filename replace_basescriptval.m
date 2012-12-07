@@ -71,9 +71,10 @@ if dowrite
   fprintf('%s\n', fname2);
 
   fid = fopen(fname2, 'wt');
-  fprintf(fid, '%% AUTOMATICALLY GENERATED FROM FILE:\n');
-  fprintf(fid, '%% %s\n', fname);
-  fprintf(fid, '\n');
+  % Nice idea, but gets wrong if the executor has another comment sign
+  %  fprintf(fid, '%% AUTOMATICALLY GENERATED FROM FILE:\n');
+  %  fprintf(fid, '%% %s\n', fname);
+  %  fprintf(fid, '\n');
   for i=1:nlines
     fprintf(fid, '%s', all_lines_print{i});
   end

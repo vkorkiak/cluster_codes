@@ -35,26 +35,28 @@ batchinds = zeros(nsimulbatch,1);
 batchruns = zeros(nsimulbatch,1);
 
 for i=1:nbatch
-  % Let's first wait for most idle processes to finish
-  wait_for_idles(1);
-  
-  % Then, let's wait until at most nsimulbatch are running. Useful, if
-  % more than one batches are launched simultaneously.
-  % wait_for_runnings(nsimulbatch);
+  if useqsub
+    % Let's first wait for most idle processes to finish
+    wait_for_idles(1);
 
-  % Is there space in the batch?
-  % Lets wait until there is space
-  while sum(batchruns) >= nsimulbatch
-    for u=1:nsimulbatch
-      if batchruns(u)
-	outfile = ['./results/' file_basename(batchnames{batchinds(u)}) resufile]; 
-	if exist(outfile, 'file')
-	  batchruns(u) = 0;
+    % Then, let's wait until at most nsimulbatch are running. Useful, if
+    % more than one batches are launched simultaneously.
+    % wait_for_runnings(nsimulbatch);
+
+    % Is there space in the batch?
+    % Lets wait until there is space
+    while sum(batchruns) >= nsimulbatch
+      for u=1:nsimulbatch
+	if batchruns(u)
+	  outfile = ['./results/' file_basename(batchnames{batchinds(u)}) resufile]; 
+	  if exist(outfile, 'file')
+	    batchruns(u) = 0;
+	  end
 	end
       end
+      sleep(2);
     end
-    sleep(2);
-  end
+  end % using the scheduler
 
     
   batchpos = min(find(batchruns == 0));
@@ -71,7 +73,8 @@ for i=1:nbatch
   end
   if usemaster
     fprintf('%d: --- launching on master %s...\n', i, batchnames{i});
-    system(['cd results ; ' runcmd ' ' file_basename(batchnames{i})]);        
+    system(['cd results ; ' runcmd ' ' file_basename(batchnames{i}) ' > '...
+	    file_basename(batchnames{i}) '.log']);        
   end
 
   batchinds(batchpos) = i;

@@ -1,15 +1,11 @@
 %
 % Creates the batches (m-files) to launch simulations.
-% Run this:
-%  create_batches(basefile, modparams)
 %
 function [batchlen, all_nicks, all_batchfiles] = ...
       create_batches_func(basefile, modvals, dowrite, runcmd)
 
 if ~exist('dowrite', 'var')
-  dowrite=1;  % By default, write to disk
-else
-  dowrite=0;  % Do not write the scripts to disk
+  dowrite=0;  % By default, don't write to disk
 end
 
 if ~exist('basefile', 'var')
@@ -18,6 +14,11 @@ end
 
 if ~exist('runcmd', 'var')
   runcmd = 'octave'; % Default run command
+end
+
+% Is the results directory there?
+if ~exist('results', 'dir')
+   error('Directory results does not exist.');
 end
 
 
