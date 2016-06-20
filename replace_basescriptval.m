@@ -38,6 +38,9 @@ for i=1:nlines
 	
 	curnick2 = [curnick '_' nick valstr];
       
+	%fprintf('curnick: %s, nick: %s, valstr: %s\n', curnick, nick, valstr);
+	%fprintf('curline: %s\n', curline);
+
 	% Continue expansion
 	[batchlen, all_nicks, all_batchfiles] = ...
 	    replace_basescriptval(all_lines2, path, fname, curnick2, ...
@@ -75,6 +78,10 @@ if dowrite
   %  fprintf(fid, '%% AUTOMATICALLY GENERATED FROM FILE:\n');
   %  fprintf(fid, '%% %s\n', fname);
   %  fprintf(fid, '\n');
+
+  % TODO -- make this somehow optional/reformattable.
+  fprintf(fid, '\n__theNICK = "%s";\n\n', curnick);
+
   for i=1:nlines
     fprintf(fid, '%s', all_lines_print{i});
   end
