@@ -49,7 +49,8 @@ def findval(fname, varname, isnum):
  
  """
 def replace_basescriptval(all_lines, path, fname, curnick, \
-                          batchlen, all_nicks, all_batchfiles, dowrite=0):
+                          batchlen, all_nicks, all_batchfiles, dowrite=0, 
+                          strid='"', nickstr='__theNICK'):
 
     #fprintf('%s\n', curnick);
     reg = re.compile('\{\{.*\}\}')
@@ -73,7 +74,8 @@ def replace_basescriptval(all_lines, path, fname, curnick, \
                 # Continue expansion
                 batchlen, all_nicks, all_batchfiles = \
                     replace_basescriptval(all_lines2, path, fname, curnick2, 
-                                          batchlen, all_nicks, all_batchfiles, dowrite=dowrite)
+                                          batchlen, all_nicks, all_batchfiles, dowrite=dowrite, 
+                                          nickstr=nickstr, strid=strid)
     
             return (batchlen, all_nicks, all_batchfiles)
 
@@ -98,7 +100,7 @@ def replace_basescriptval(all_lines, path, fname, curnick, \
         #  fprintf(fid, '\n');
     
         # TODO -- make this somehow optional/reformattable.
-        print('\n__theNICK = "%s";\n\n' % (curnick), file=fid)
+        print('\n%s = %s%s%s;\n\n' % (nickstr, strid, curnick, strid), file=fid)
     
         for curline in all_lines_print:
             print('%s' % (curline), file=fid)
@@ -116,7 +118,7 @@ def replace_basescriptval(all_lines, path, fname, curnick, \
 """
  Creates the batches to launch simulations.
 """
-def create_batches_func(basefile, resudir, dowrite=0, runcmd='python'):
+def create_batches_func(basefile, resudir, dowrite=0, runcmd='python', strid='"', nickstr='__theNICK'):
 
 
     # Is the results directory there?
@@ -146,7 +148,7 @@ def create_batches_func(basefile, resudir, dowrite=0, runcmd='python'):
     
     # The recursive part
     batchlen, nicks, batchfiles = replace_basescriptval(all_lines, workdir, basefile, '', \
-                              batchlen, [], [], dowrite=dowrite)
+                              batchlen, [], [], dowrite=dowrite, nickstr=nickstr, strid=strid)
 
     # Finish the writeup      
     if dowrite:
