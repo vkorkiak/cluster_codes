@@ -68,7 +68,8 @@ def replace_basescriptval(all_lines, path, fname, curnick, \
             nick = slp[0].lstrip().rstrip()
             allvals = slp[1].replace('{','').replace('}','').split(',')
             for valstr in allvals:
-                all_lines2[cli] = nick+'='+valstr.lstrip().rstrip()                
+                indent = len(curline) - len(curline.lstrip(' '))
+                all_lines2[cli] = ' '*indent+nick+'='+valstr.lstrip().rstrip()                
                 curnick2 = curnick+'_'+nick+valstr.lstrip().rstrip()
 
                 # Continue expansion
@@ -152,7 +153,7 @@ def create_batches_func(basefile, resudir, dowrite=0, runcmd='python', strid='"'
 
     # Finish the writeup      
     if dowrite:
-        print('The batchfile %s was expanded to %d files:' % (basefile, len(batchfiles[1])))
+        print('The batchfile %s was expanded to %d files:' % (basefile, len(batchfiles)))
         for (fi, fname) in enumerate(batchfiles):
             print('%d: %s' % (fi, fname))
     
@@ -225,7 +226,8 @@ def get_batchcmd(nmachines, machinename, batchpos, batchname, resudir):
 """
 
 def bare_launch_jobs(batchnames, resudir, machinename, runcmd='python', 
-                     nmachines=1, npermachine=8, usermaster=0, useqsub=0):
+                     nmachines=1, npermachine=8, usermaster=0, useqsub=0,
+                     start_delay=0):
 
     nsimulbatch = npermachine * nmachines
     
@@ -263,6 +265,8 @@ def bare_launch_jobs(batchnames, resudir, machinename, runcmd='python',
                 print('%d: --- batchfile %s starts...' % (i, batchnames[i]))
                 cmd = get_batchcmd(nmachines, machinename, batchpos, batchnames[i], resudir)
                 os.system(cmd)
+                # Wait a moment before next launch
+                time.sleep(start_delay)
     
         batchinds[batchpos] = i
         batchruns[batchpos] = 1
