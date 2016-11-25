@@ -29,7 +29,7 @@ def findval(fname, varname, isnum):
         #print(count)
         strs = line.split(' =')
         if len(strs) > 1:
-            if varname == strs[0]:
+            if varname in strs[0]:
                     uval = strs[1];
                     uval = uval.replace('"', '')
                     uval = uval.replace('\n', '')
@@ -37,7 +37,7 @@ def findval(fname, varname, isnum):
 
                     if isnum==0:
                         return uval
-                    return int(uval)
+                    return float(eval(uval.replace(';', '').replace('f', '')))
         # print(strs)
         count += 1
 
