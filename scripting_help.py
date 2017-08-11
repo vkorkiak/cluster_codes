@@ -30,27 +30,26 @@ def findval(fname, varname, isnum):
         strs = line.split(' =')
         if len(strs) > 1:
             if varname in strs[0]:
-                    uval = strs[1];
-                    uval = uval.replace('"', '')
-                    uval = uval.replace('\n', '')
-                    uval = uval.lstrip().rstrip()
-
-                    if isnum==0:
-                        return uval
-                    return float(eval(uval.replace(';', '').replace('f', '')))
+                uval = strs[1];
+                uval = uval.replace('"', '')
+                uval = uval.replace('\n', '')
+                uval = uval.lstrip().rstrip()
+    
+                if isnum==0:
+                    return uval
+                return float(eval(uval.replace(';', '').replace('f', '')))
         # print(strs)
         count += 1
 
 
 
-"""
- Expands a base script. The multiple values given in the script are
- enumerated into single script files.
- 
- """
 def replace_basescriptval(all_lines, path, fname, curnick, \
                           batchlen, all_nicks, all_batchfiles, dowrite=0, 
                           strid='"', nickstr='__theNICK'):
+    """
+     Expands a base script. The multiple values given in the script are
+     enumerated into single script files.
+    """
 
     #fprintf('%s\n', curnick);
     reg = re.compile('\{\{.*\}\}')
@@ -116,11 +115,10 @@ def replace_basescriptval(all_lines, path, fname, curnick, \
 
 
 
-"""
- Creates the batches to launch simulations.
-"""
 def create_batches_func(basefile, resudir, dowrite=0, runcmd='python', strid='"', nickstr='__theNICK'):
-
+    """
+     Creates the batches to launch simulations.
+    """
 
     # Is the results directory there?
     #if os.path.isdir(resudir) == False
@@ -201,11 +199,11 @@ def create_batches_func(basefile, resudir, dowrite=0, runcmd='python', strid='"'
 
 
 
-"""
- Gives the launch command to start a background job.
- Suited for platforms w/o scheduler.
-"""
 def get_batchcmd(nmachines, machinename, batchpos, batchname, resudir):
+    """
+     Gives the launch command to start a background job.
+     Suited for platforms w/o scheduler.
+    """
 
     machineid = ''
     #machineid = 1 + mod(batchpos, nmachines)
@@ -218,16 +216,16 @@ def get_batchcmd(nmachines, machinename, batchpos, batchname, resudir):
     
 
 
-"""
- Launches a series of simulations.
-
- This is a modification of Visa's earlier script to launch yao simulations
- in parallel on a cluster without scheduler.
-"""
 
 def bare_launch_jobs(batchnames, resudir, machinename, runcmd='python', 
                      nmachines=1, npermachine=8, usermaster=0, useqsub=0,
                      start_delay=0):
+    """
+     Launches a series of simulations.
+    
+     This is a modification of Visa's earlier script to launch yao simulations
+     in parallel on a cluster without scheduler.
+    """
 
     nsimulbatch = npermachine * nmachines
     
