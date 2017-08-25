@@ -18,10 +18,9 @@ import os
 import re
 import time
 
-def findval(fname, varname, isnum):
 
-    uval=0;
-    
+def findval(fname, varname, isnum):
+    uval=0;    
     f = open(fname, 'r');
     count = 0;
     
@@ -40,6 +39,32 @@ def findval(fname, varname, isnum):
                 return float(eval(uval.replace(';', '').replace('f', '')))
         # print(strs)
         count += 1
+
+
+
+def is_param_def(linestr, params2modify):
+    params = [pa[0] for pa in params2modify]
+    strs = linestr.split(' =')
+    if len(strs) > 1:
+        potential_paramname = strs[0].rstrip().lstrip()
+        if potential_paramname in params:
+            param_values = params2modify[params.index(potential_paramname)]
+            return param_values
+    return
+
+def extract_value(simulfile, param):
+    try:
+        value    = findval(simulfile, param, 0)
+        value    = value.replace('"', '')
+        value    = value.replace("'", '')
+        value    = value.replace(";", '')
+    except Exception as e:
+        print('Problem: %s' % str(e))
+        value    = None
+    if value is None:
+        raise(ValueError('%s not found in %s' % (param, simulfile)))
+    return value
+
 
 
 
@@ -203,6 +228,34 @@ def create_batches_func(basefile, resudir, dowrite=0, runcmd='python', strid='"'
     return (batchlen, nicks, batchfiles)
 
 
+def add2base(allbases, curval, params2modify):
+    if len(params2modify)==0:
+        allbases.append(curval)
+        return
+    param, vals = params2modify[0][0], params2modify[0][1]
+    for val in vals:
+        add2base(allbases, curval+'_'+param+str(val), params2modify[1:])
+    return allbases
+
+def get_logfiles(basename, params2modify):
+    """
+    Returns a list of log files that results from a base script.
+    """
+    resudir = extract_value(basename, '_resudir')
+    logfiles = add2base([], resudir+'/'+basename+'__', params2modify)
+    for ii in range(len(logfiles)):
+        logfiles[ii] += '.log'
+    return logfiles
+
+def get_scriptfiles(basename, params2modify):
+    """
+    Returns a list of script files that are created when using the given base script.
+    """
+    resudir = extract_value(basename, '_resudir')
+    files = add2base([], resudir+'/'+basename+'__', params2modify)
+    return files
+
+
 
 def get_batchcmd(nmachines, machinename, batchpos, batchname, resudir):
     """
@@ -279,30 +332,6 @@ def bare_launch_jobs(batchnames, resudir, machinename, runcmd='python',
         batchruns[batchpos] = 1
   
   
-
-def is_param_def(linestr, params2modify):
-    params = [pa[0] for pa in params2modify]
-    strs = linestr.split(' =')
-    if len(strs) > 1:
-        potential_paramname = strs[0].rstrip().lstrip()
-        if potential_paramname in params:
-            param_values = params2modify[params.index(potential_paramname)]
-            return param_values
-    return
-
-def extract_value(simulfile, param):
-    try:
-        value    = findval(simulfile, param, 0)
-        value    = value.replace('"', '')
-        value    = value.replace("'", '')
-        value    = value.replace(";", '')
-    except Exception as e:
-        print('Problem: %s' % str(e))
-        value    = None
-    if value is None:
-        raise(ValueError('%s not found in %s' % (param, simulfile)))
-    return value
-
 
 def run_simus(simulfile, params2modify, batchid='DEBUGruns',
               machinename='localhost', npermachine=1):
