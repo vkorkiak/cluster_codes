@@ -17,6 +17,8 @@ import numpy as np
 import os
 import re
 import time
+import subprocess
+import socket
 
 
 def findval(fname, varname, isnum):
@@ -73,8 +75,8 @@ def replace_basescriptval(all_lines, fname, curnick, \
                           strid='"', nickstr='__theNICK', commentid=None,
                           batchid='DEBUG'):
     """
-     Expands a base script. The multiple values given in the script are
-     enumerated into single script files.
+    Expands a base script. The multiple values given in the script are
+    enumerated into single script files.
     """
 
     #fprintf('%s\n', curnick);
@@ -259,8 +261,8 @@ def get_scriptfiles(basename, params2modify):
 
 def get_batchcmd(nmachines, machinename, batchpos, batchname, resudir):
     """
-     Gives the launch command to start a background job.
-     Suited for platforms w/o scheduler.
+    Gives the launch command to start a background job.
+    Suited for platforms w/o scheduler.
     """
 
     machineid = ''
@@ -276,13 +278,14 @@ def get_batchcmd(nmachines, machinename, batchpos, batchname, resudir):
 
 
 def bare_launch_jobs(batchnames, resudir, machinename, runcmd='python', 
-                     nmachines=1, npermachine=8, usermaster=0, useqsub=0,
-                     start_delay=0):
+                     nmachines=1, npermachine=8, start_delay=0):
     """
-     Launches a series of simulations.
+    Launches a series of simulations.
+
+    Jobs are launched directly on the local machine.
     
-     This is a modification of Visa's earlier script to launch yao simulations
-     in parallel on a cluster without scheduler.
+    This is a modification of Visa's earlier script to launch yao simulations
+    in parallel on a cluster without scheduler.
     """
 
     nsimulbatch = npermachine * nmachines
@@ -292,10 +295,6 @@ def bare_launch_jobs(batchnames, resudir, machinename, runcmd='python',
     batchruns = np.zeros(nsimulbatch)
     
     for i in range(0,nbatch):
-        # Then, let's wait until at most nsimulbatch are running. Useful, if
-        # more than one batches are launched simultaneously.
-        # wait_for_runnings(nsimulbatch);
-
         # Is there space in the batch?
         # Lets wait until there is space
         while np.sum(batchruns) >= nsimulbatch:
@@ -330,11 +329,203 @@ def bare_launch_jobs(batchnames, resudir, machinename, runcmd='python',
     
         batchinds[batchpos] = i
         batchruns[batchpos] = 1
-  
+
+
+
+def gcp_check_instance_zone(instance_name):
+    print('Chekcing the zone of %s' % instance_name)
+    try:
+        cmd = 'gcloud compute instances list'
+        proc=subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, )
+        output = (proc.communicate()[0]).decode()
+        lines = output.split('\n')
+        for line in lines:
+            if len(line)==0: continue
+            fields = line.split()
+            # print('Found instance %s.' % fields[0])
+            if fields[0] == instance_name:
+                print('Zone found: %s' % fields[1])
+                return fields[1] # the zone name
+    except Exception as e:
+        print('Failed to extract name. %s.' % str(e))
+    print('Did not find any instance: %s' % instance_name)
+
+
+def gcp_get_instance_groups():
+    print('Looking for existing instance groups...')
+    try:
+        cmd = 'gcloud compute instance-groups list'
+        proc=subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, )
+        output = (proc.communicate()[0]).decode()
+        lines = output.split('\n')
+        lines = lines[1:-1]
+        instance_groups = [str(li.split()[0]) for li in lines]
+        nintances       = [int(li.split()[5]) for li in lines]
+        print('%d instance groups found' % len(instance_groups))
+        return (instance_groups, nintances)
+    except Exception as e:
+        print('%s' % str(e))
+
+
+def gcp_create_slaves(gcp_params):
+    """
+    Create slave instances using given template.
+    """
+    instance_group_name    = gcp_params['instance_group_name']
+    instance_template_name = gcp_params['instance_template_name']
+    ninstances             = gcp_params['ninstances']
+    base_instance_name     = 'slave'
+
+    master_instance = socket.gethostname()
+    zone = gcp_check_instance_zone(master_instance)
+
+    # Is the instance group already there?
+    instance_group_exists = False
+    try:
+        running_instance_groups,runnig_nintances = gcp_get_instance_groups()
+        if instance_group_name in running_instance_groups:
+            instance_group_exists = True
+    except:
+        pass
+
+    if not instance_group_exists:
+        print('Creating instance group %s of %d instances.' % (instance_group_name, ninstances))
+
+        cmd = "gcloud compute instance-groups managed create "+instance_group_name+\
+              " --base-instance-name "+base_instance_name+\
+              " --size "+str(ninstances)+\
+              " --template "+instance_template_name+\
+              " --zone "+zone
+
+        print('Launching command:')
+        print(cmd)
+        ret = os.system(cmd)
+        if ret != 0:
+            print('FAIL!')
+            raise(ValueError('Could not start slaves.'))
+        else:
+            print('SUCCESS')
+
+        # It will take a while until the instance group is ready
+        while True:
+            print('Monitoring the creation of the instance group')
+            time.sleep(3)
+
+            cmd = 'gcloud compute instance-groups managed list-instances '+instance_group_name+' --zone '+zone
+            proc=subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, )
+            output = (proc.communicate()[0]).decode()
+            lines = output.split('\n')
+            lines = lines[1:-1]            
+            ok2go = np.zeros(len(lines))
+            for li, line in enumerate(lines):
+                print('%d: %s' % (line))
+                if 'RUNNING' in line:
+                    ok2go[li] = 1
+            if np.all(ok2go==1):
+                break
+    else:
+        print('Instance group exists: %s' % instance_group_name)
+
+    # Then, find the names of the machines in an instance group
+    cmd = 'gcloud compute instance-groups managed list-instances '+instance_group_name+' --zone '+zone
+    proc=subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, )
+    output = (proc.communicate()[0]).decode()
+    lines = output.split('\n')
+    lines = lines[1:]
+    if lines[-1] == '': lines=lines[:-1]
+    slave_names = [str(li.split()[0]) for li in lines]
+
+    print('Slaves:')
+    for si, slave in enumerate(slave_names):
+        print('%d: %s' % (si, slave))
+
+    return slave_names
+
+
+
+def cluster_batchcmd(remotemachine, batchname, resudir):
+    """
+    Gives the launch command to start a background job.
+    Suited for platforms w/o scheduler.
+    """
+    machineid = ''
+    localcmd = '"cd '+resudir+' ; bash '+os.path.basename(batchname)+'_launcher"'
+    cmd = 'ssh -q -o "BatchMode yes" -oStrictHostKeyChecking=no '+remotemachine+' '+localcmd+' &'
+    return cmd
+
+
+def cluster_launch_jobs(batchnames, resudir, machinename, platformparams,
+                        runcmd='python', 
+                        npermachine=8, start_delay=0):
+    """
+    Launches a series of simulations.
+
+    Jobs are launched on a cluster, depending in the settings defined in
+    platformparams.
+    
+    This is a modification of Visa's earlier script to launch yao simulations
+    in parallel on a cluster without scheduler.
+    """
+
+    # How many slaves do we have?
+    slaves = gcp_create_slaves(platformparams)
+    nmachines = len(slaves)
+
+    nbatch    = len(batchnames)
+    batchinds = np.zeros((nmachines, npermachine))
+    batchruns = np.zeros((nmachines, npermachine))
+    nparallel = npermachine * nmachines
+    
+    for i in range(nbatch):
+        # Is there space in the batch?
+        # Lets wait until there is space
+        while np.sum(batchruns) >= nparallel:
+            for u1 in range(nmachines):
+                for u2 in range(npermachine):
+                    if batchruns[u1,u2]:
+                        # Check if the job is finished. By default, we think it is running.
+                        batchruns[u1,u2] = 1
+                        logname = resudir+'/'+os.path.basename(batchnames[int(batchinds[u1,u2])])+'.log'
+                        if os.path.exists(logname):
+                            if os.system('grep COUCOU '+logname+' > /dev/null') == 0:
+                                batchruns[u1,u2] = 0
+            time.sleep(2)
+
+        # Where to start the new batch
+        batchpos1 = batchpos2 = None
+        for u1 in range(nmachines):
+            for u2 in range(npermachine):
+                if batchruns[u1,u2] == 0:                    
+                    batchpos1 = u1
+                    batchpos2 = u2
+                    break
+    
+        # Start the background job
+        isFinished = False
+        logname = resudir+'/'+os.path.basename(batchnames[i])+'.log'
+        if os.path.exists(logname):
+            cmd = 'grep COUCOU '+ logname + ' > /dev/null'
+            isFinished = not os.system(cmd)
+    
+        if isFinished:
+            print('%d: --- batchfile %s ALREADY DONE.' % (i, batchnames[i]))
+        else:
+            remotemachine = slaves[batchpos1]
+            print('%d: --- batchfile %s starts on %s. Job %d/%d there.' % (i, batchnames[i], remotemachine, batchpos2, npermachine))
+            cmd = cluster_batchcmd(remotemachine, batchnames[i], resudir)
+            os.system(cmd)
+            # Wait a moment before next launch
+            time.sleep(start_delay)
+    
+        batchinds[batchpos1,batchpos2] = i
+        batchruns[batchpos1,batchpos2] = 1
+
+
+ 
   
 
 def run_simus(simulfile, params2modify, batchid='DEBUGruns',
-              machinename='localhost', npermachine=1):
+              machinename='localhost', npermachine=1, platformparams=None):
     """
     Run simulations as defined in the simulation file.
 
@@ -385,6 +576,17 @@ def run_simus(simulfile, params2modify, batchid='DEBUGruns',
     print('Master machine:   %s'  % machinename)
     print('#simus / machine: %d'  % npermachine)
 
+    # If not there, let's create the result directory
+    if not os.path.exists(resudir):
+        print('Result directory not found: %s' % resudir)
+        reply = input('Create directory? (N/y)?')
+        if len(reply)==0:
+            reply='n'
+        if reply=='y':
+            os.system('mkdir -p ' + resudir)
+        else:
+            quit()
+
     actual2base = resudir+'/'+simulfile
     # Wait until there is no chance of replacing anything
     while os.path.exists(actual2base):
@@ -433,9 +635,11 @@ def run_simus(simulfile, params2modify, batchid='DEBUGruns',
                                                           dowrite=1, runcmd=runcmd, 
                                                           strid=strid, nickstr=nickstr,
                                                           commentid=commentid, batchid=batchid)
-
     # Then, remove temporary base file
     os.system('rm '+actual2base)
+
+    if reply != 'y':
+        quit()
 
     # Copy necessary files to resudir, if so needed
     for file2copy in files2copy.split(', '):
@@ -443,8 +647,18 @@ def run_simus(simulfile, params2modify, batchid='DEBUGruns',
             continue
         if not os.path.exists(file2copy):
             raise(ValueError('File to copy not found: %s' % file2copy))
-        print('Copying %s to %s' % (file2copy, resudir))
-        os.system('cp '+file2copy +' '+ resudir)
+
+        # Let's not copy large binaries since that takes very long...
+        docopy = True
+        if file2copy.endswith('.fits'):
+            if os.path.exists(resudir+'/'+file2copy):
+                docopy = False
+
+        if docopy:
+            print('Copying %s to %s' % (file2copy, resudir))
+            os.system('cp '+file2copy +' '+ resudir)
+        else:
+            print('File exists: %s/%s' % (resudir, file2copy))
 
 
     # Then, we are ready to run
@@ -454,7 +668,13 @@ def run_simus(simulfile, params2modify, batchid='DEBUGruns',
         reply='n'
     if reply=='y':
         print("OK, let's launch the scripts...")
-        bare_launch_jobs(batchfiles, resudir, machinename, 
-                         runcmd=runcmd, npermachine=npermachine)
+
+        if platformparams is None:
+            bare_launch_jobs(batchfiles, resudir, machinename, 
+                             runcmd=runcmd, npermachine=npermachine)
+        else:
+            cluster_launch_jobs(batchfiles, resudir, machinename, platformparams,
+                                runcmd=runcmd, npermachine=npermachine)
     else:
         print('Scripts not laucnhed.')
+
