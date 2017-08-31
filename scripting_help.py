@@ -676,5 +676,5 @@ def run_simus(simulfile, params2modify, batchid='DEBUGruns',
             cluster_launch_jobs(batchfiles, resudir, machinename, platformparams,
                                 runcmd=runcmd, npermachine=npermachine)
     else:
-        print('Scripts not laucnhed.')
+        print('Scripts not launched.')
 
