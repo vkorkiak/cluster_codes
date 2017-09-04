@@ -562,6 +562,14 @@ def gcp_launch_jobs(batchnames, resudir, machinename, platformparams,
                         if os.system('grep COUCOU '+logname+' > /dev/null') == 0:
                             batchruns[u1,u2] = 0
                             print('Still %d jobs to finish...' % np.sum(batchruns))
+                            # Resize the instance group
+                            cmd = 'gcloud compute instance-groups managed resize '+platformparams['instance_group_name']+\
+                                  ' --size '+int(np.sum(batchruns))+\
+                                  ' --zone '+zone
+                            print('Running: %s' % cmd)
+                            ret = os.system(cmd)
+                            if ret != 0:
+                                print('Instance group resize failed')
         time.sleep(2)
 
     print('All the jobs are finished!')
