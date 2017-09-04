@@ -19,6 +19,7 @@ import re
 import time
 import subprocess
 import socket
+import copy
 
 
 def findval(fname, varname, isnum):
@@ -228,6 +229,34 @@ def create_batches_func(basefile, resudir, dowrite=0, runcmd='python', strid='"'
     #    run_batches
 
     return (batchlen, nicks, batchfiles)
+
+
+def add2base2(allbases, curval, params2modify):
+    if len(params2modify)==0:
+        allbases.append(copy.copy(curval))
+        return
+    param, vals = params2modify[0][0], params2modify[0][1]
+    for val in vals:
+        curval[param] = val
+        add2base2(allbases, curval, params2modify[1:])
+    return allbases
+
+def get_paramvals(params2modify):
+    return add2base2([], dict(), params2modify)
+
+def get_paraminds(params2modify, conditions):
+    """ 
+    Returns the indices of the sets in params2modify that fulfill the
+    given conditions.
+    """
+    paramvals = get_paramvals(params2modify)
+    for pi, paramval in enumerate(paramvals):
+        for cond in conditions:
+            if paramval[cond[0]] != cond[1]:
+                paramvals[pi] = None
+                break
+    inds = [i for i,va in enumerate(paramvals) if va is not None]
+    return inds
 
 
 def add2base(allbases, curval, params2modify):
