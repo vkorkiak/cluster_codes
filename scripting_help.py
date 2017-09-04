@@ -306,7 +306,7 @@ def get_batchcmd(nmachines, machinename, batchpos, batchname, resudir):
 
 
 
-def bare_launch_jobs(batchnames, resudir, machinename, runcmd='python', 
+def bare_launch_jobs(batchnames, resudir, machinename,
                      nmachines=1, npermachine=8, start_delay=0):
     """
     Launches a series of simulations.
@@ -433,11 +433,11 @@ def gcp_create_slaves(gcp_params):
             print('FAIL!')
             raise(ValueError('Could not start slaves.'))
         else:
-            print('SUCCESS')
+            print('Instance group created succesfully.')
 
         # It will take a while until the instance group is ready
         while True:
-            print('Monitoring the creation of the instance group')
+            print('Monitoring the creation of the instance group...')
             time.sleep(3)
 
             cmd = 'gcloud compute instance-groups managed list-instances '+instance_group_name+' --zone '+zone
@@ -447,7 +447,7 @@ def gcp_create_slaves(gcp_params):
             lines = lines[1:-1]            
             ok2go = np.zeros(len(lines))
             for li, line in enumerate(lines):
-                print('%d: %s' % (line))
+                # print('%d: %s' % (li, line))
                 if 'RUNNING' in line:
                     ok2go[li] = 1
             if np.all(ok2go==1):
@@ -468,7 +468,7 @@ def gcp_create_slaves(gcp_params):
     for si, slave in enumerate(slave_names):
         print('%d: %s' % (si, slave))
 
-    return slave_names
+    return (slave_names, zone)
 
 
 
@@ -483,9 +483,8 @@ def cluster_batchcmd(remotemachine, batchname, resudir):
     return cmd
 
 
-def cluster_launch_jobs(batchnames, resudir, machinename, platformparams,
-                        runcmd='python', 
-                        npermachine=8, start_delay=0):
+def gcp_launch_jobs(batchnames, resudir, machinename, platformparams,
+                    overwrite=False, npermachine=8, start_delay=0):
     """
     Launches a series of simulations.
 
@@ -497,13 +496,36 @@ def cluster_launch_jobs(batchnames, resudir, machinename, platformparams,
     """
 
     # How many slaves do we have?
-    slaves = gcp_create_slaves(platformparams)
+    slaves, zone = gcp_create_slaves(platformparams)
     nmachines = len(slaves)
+
+    # Check that ssh works to the slaves. Try a few times, because the slaves might
+    # not wake up immediately...
+    for ii in range(4):
+        print('Checking that we can access slaves with an SSH connection...')
+        cmd = 'ssh -oStrictHostKeyChecking=no '+slaves[0]+' "ls"'
+        proc=subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE,)
+        output = (proc.communicate()[0]).decode()
+        if 'ultimateglao' in output: break # slave should have directory "ultimateglao" in home
+        print('Could not yet access the slaves')
+        time.sleep(3)
+    else:
+        print('Run this: ')
+        print('ssh-agent bash')
+        print('ssh-add ~/.ssh/google_compute_engine')
+        raise(ValueError('Failed to have ssh connection to slaves.'))
+    print('SSH access to slaves granted!')
+
+    delete_instancegroup = True
+    if 'delete_instancegroup' in platformparams:
+        delete_instancegroup = platformparams['delete_instancegroup']
 
     nbatch    = len(batchnames)
     batchinds = np.zeros((nmachines, npermachine))
     batchruns = np.zeros((nmachines, npermachine))
     nparallel = npermachine * nmachines
+
+
     
     for i in range(nbatch):
         # Is there space in the batch?
@@ -512,8 +534,10 @@ def cluster_launch_jobs(batchnames, resudir, machinename, platformparams,
             for u1 in range(nmachines):
                 for u2 in range(npermachine):
                     if batchruns[u1,u2]:
-                        # Check if the job is finished. By default, we think it is running.
-                        batchruns[u1,u2] = 1
+                        # Check if the job is finished.  We expect the
+                        # log file to found, becase the code below has
+                        # started a simulation that will output to
+                        # this file.
                         logname = resudir+'/'+os.path.basename(batchnames[int(batchinds[u1,u2])])+'.log'
                         if os.path.exists(logname):
                             if os.system('grep COUCOU '+logname+' > /dev/null') == 0:
@@ -530,14 +554,19 @@ def cluster_launch_jobs(batchnames, resudir, machinename, platformparams,
                     break
     
         # Start the background job
-        isFinished = False
+        prev_status = 'not_started'
         logname = resudir+'/'+os.path.basename(batchnames[i])+'.log'
-        if os.path.exists(logname):
-            cmd = 'grep COUCOU '+ logname + ' > /dev/null'
-            isFinished = not os.system(cmd)
+        if overwrite == False:
+            if os.path.exists(logname):
+                prev_status = 'started'
+                cmd = 'grep COUCOU '+ logname + ' > /dev/null'
+                if os.system(cmd)==0:
+                    prev_status = 'finished'
     
-        if isFinished:
+        if prev_status == 'finished':
             print('%d: --- batchfile %s ALREADY DONE.' % (i, batchnames[i]))
+        elif prev_status == 'started':
+            print('%d: --- batchfile %s EXISTS. Not overwriting.' % (i, batchnames[i]))
         else:
             remotemachine = slaves[batchpos1]
             print('%d: --- batchfile %s starts on %s. Job %d/%d there.' % (i, batchnames[i], remotemachine, batchpos2, npermachine))
@@ -550,11 +579,49 @@ def cluster_launch_jobs(batchnames, resudir, machinename, platformparams,
         batchruns[batchpos1,batchpos2] = 1
 
 
+    print('Last job has been dispatched!')
+    print('Waiting for all the jobs to finish')
+
+    while np.sum(batchruns) !=0:        
+        for u1 in range(nmachines):
+            for u2 in range(npermachine):
+                if batchruns[u1,u2]:
+                    logname = resudir+'/'+os.path.basename(batchnames[int(batchinds[u1,u2])])+'.log'
+                    if os.path.exists(logname):
+                        if os.system('grep COUCOU '+logname+' > /dev/null') == 0:
+                            batchruns[u1,u2] = 0
+                            print('Still %d jobs to finish...' % np.sum(batchruns))
+                            # Resize the instance group
+                            cmd = 'gcloud compute instance-groups managed resize '+platformparams['instance_group_name']+\
+                                  ' --size '+int(np.sum(batchruns))+\
+                                  ' --zone '+zone
+                            print('Running: %s' % cmd)
+                            ret = os.system(cmd)
+                            if ret != 0:
+                                print('Instance group resize failed')
+        time.sleep(2)
+
+    print('All the jobs are finished!')
+
+    if delete_instancegroup:
+        instance_group_name = platformparams['instance_group_name']
+        print('Deleting instance group %s' % instance_group_name)
+
+        cmd = 'gcloud compute instance-groups managed delete '+instance_group_name+\
+              ' --zone '+zone+' --no-user-output-enabled --quiet'
+        ret = os.system(cmd)
+        if ret != 0:
+            print('FAILURE TO DELETE. !!')
+        else:
+            print('Instance group deleted.')
+
+    print('ALL DONE.')
  
   
 
 def run_simus(simulfile, params2modify, batchid='DEBUGruns',
-              machinename='localhost', npermachine=1, platformparams=None):
+              machinename='localhost', npermachine=1, platformparams=None,
+              overwrite=False):
     """
     Run simulations as defined in the simulation file.
 
@@ -698,12 +765,22 @@ def run_simus(simulfile, params2modify, batchid='DEBUGruns',
     if reply=='y':
         print("OK, let's launch the scripts...")
 
+        # Check, if the log files already exist
+        if not overwrite:
+            logfiles = get_logfiles(simulfile, params2modify)
+            for logfile in logfiles:
+                if not os.path.exists(logfile):
+                    break
+                else:
+                    print('All the log files exist and overwrite forbidden. Nothing to do.')
+                    quit()
+
         if platformparams is None:
             bare_launch_jobs(batchfiles, resudir, machinename, 
-                             runcmd=runcmd, npermachine=npermachine)
+                             npermachine=npermachine)
         else:
-            cluster_launch_jobs(batchfiles, resudir, machinename, platformparams,
-                                runcmd=runcmd, npermachine=npermachine)
+            gcp_launch_jobs(batchfiles, resudir, machinename, platformparams,
+                            npermachine=npermachine, overwrite=overwrite)
     else:
         print('Scripts not launched.')
 
