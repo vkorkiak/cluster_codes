@@ -20,7 +20,7 @@ import time
 import subprocess
 import socket
 import copy
-
+import glob
 
 def findval(fname, varname, isnum):
     uval=0;    
@@ -74,7 +74,7 @@ def extract_value(simulfile, param):
 def replace_basescriptval(all_lines, fname, curnick, \
                           batchlen, all_nicks, all_batchfiles, dowrite=0, 
                           strid='"', nickstr='__theNICK', commentid=None,
-                          batchid='DEBUG'):
+                          batchid='DEBUG', file_extension=''):
     """
     Expands a base script. The multiple values given in the script are
     enumerated into single script files.
@@ -105,12 +105,12 @@ def replace_basescriptval(all_lines, fname, curnick, \
                     replace_basescriptval(all_lines2, fname, curnick2, 
                                           batchlen, all_nicks, all_batchfiles, dowrite=dowrite, 
                                           nickstr=nickstr, strid=strid, commentid=commentid,
-                                          batchid=batchid)
+                                          batchid=batchid, file_extension=file_extension)
     
             return (batchlen, all_nicks, all_batchfiles)
 
     # print, curnick
-    fname2 = fname+'__'+curnick
+    fname2 = fname+'__'+curnick+file_extension
     
     # Here could be other replacements...
     all_lines_print = all_lines.copy()
@@ -149,7 +149,8 @@ def replace_basescriptval(all_lines, fname, curnick, \
 
 
 def create_batches_func(basefile, resudir, dowrite=0, runcmd='python', strid='"', 
-                        nickstr='__theNICK', commentid=None, batchid='DEBUGfunc'):
+                        nickstr='__theNICK', commentid=None, batchid='DEBUGfunc',
+                        all_lines=None, file_extension='', only_simulfiles=False):
     """
     Creates the batches to launch simulations.
     Parameter basefile needs to contain the full path.
@@ -168,18 +169,20 @@ def create_batches_func(basefile, resudir, dowrite=0, runcmd='python', strid='"'
     batchlen = 0;
     fname = basefile
     
-    # At first, read all lines into memory
-    all_lines = []
-    f = open(fname, 'r')
-    count = 0;
-    for line in f: 
-        all_lines.append(line.replace('\n', ''))
-        count += 1;
+    if all_lines is None:
+        # At first, read all lines into memory
+        all_lines = []
+        f = open(fname, 'r')
+        count = 0;
+        for line in f: 
+            all_lines.append(line.replace('\n', ''))
+            count += 1;
     
     # The recursive part
     batchlen, nicks, batchfiles = replace_basescriptval(all_lines, basefile, '', \
                                                         batchlen, [], [], dowrite=dowrite, nickstr=nickstr, 
-                                                        strid=strid, commentid=commentid, batchid=batchid)
+                                                        strid=strid, commentid=commentid, batchid=batchid,
+                                                        file_extension=file_extension)
 
     # Finish the writeup      
     if dowrite:
@@ -200,28 +203,29 @@ def create_batches_func(basefile, resudir, dowrite=0, runcmd='python', strid='"'
                 os.system('mv '+ fname +' ' +resudir);
       
         # Create launcher scripts
-        for fname in batchfiles:
-            batchname = os.path.basename(fname)
-            fid = open(resudir+'/'+batchname + '_launcher', 'wt');
-            
-            print('', file=fid);
-            print('# Launch application', file=fid);
-            print(runcmd+' '+batchname+' > '+batchname+'.log', file=fid);
-            print('\n', file=fid);
-            print('\n', file=fid);
-            fid.close();
-
-            #fprintf(fid, ['']);
-            #fprintf(fid, ['#PBS -l procs=1\n']);             # launcher specific
-            #fprintf(fid, ['#PBS -l walltime=4:24:30:00\n']); # launcher specific
-            #fprintf(fid, ['#PBS -q batch \n'])               # launcher specific
-            #fprintf(fid, ['#PBS -V \n']);                    # launcher specific
-            #fprintf(fid, ['cd $PBS_O_WORKDIR \n']);
-            #fprintf(fid, ['# Launch application \n']);
-            #fprintf(fid, [runcmd ' ' batchname ' > ' batchname '.log\n']);
-            #fprintf(fid, ['\n']);
-            #fprintf(fid, ['\n']);
-            #fclose(fid);
+        if only_simulfiles == False:
+            for fname in batchfiles:
+                batchname = os.path.basename(fname)
+                fid = open(resudir+'/'+batchname + '_launcher', 'wt');
+                
+                print('', file=fid);
+                print('# Launch application', file=fid);
+                print(runcmd+' '+batchname+' > '+batchname+'.log', file=fid);
+                print('\n', file=fid);
+                print('\n', file=fid);
+                fid.close();
+    
+                #fprintf(fid, ['']);
+                #fprintf(fid, ['#PBS -l procs=1\n']);             # launcher specific
+                #fprintf(fid, ['#PBS -l walltime=4:24:30:00\n']); # launcher specific
+                #fprintf(fid, ['#PBS -q batch \n'])               # launcher specific
+                #fprintf(fid, ['#PBS -V \n']);                    # launcher specific
+                #fprintf(fid, ['cd $PBS_O_WORKDIR \n']);
+                #fprintf(fid, ['# Launch application \n']);
+                #fprintf(fid, [runcmd ' ' batchname ' > ' batchname '.log\n']);
+                #fprintf(fid, ['\n']);
+                #fprintf(fid, ['\n']);
+                #fclose(fid);
     
     # Run the batches by monitoring script that keep trach how many jobs are
     # going on.
@@ -268,11 +272,11 @@ def add2base(allbases, curval, params2modify):
         add2base(allbases, curval+'_'+param+str(val), params2modify[1:])
     return allbases
 
-def get_logfiles(basename, params2modify):
+def get_logfiles(basename, params2modify, file_extension=''):
     """
     Returns a list of log files that results from a base script.
     """
-    resudir = extract_value(basename, '_resudir')
+    resudir = extract_value(basename+file_extension, '_resudir')
     logfiles = add2base([], resudir+'/'+basename+'__', params2modify)
     for ii in range(len(logfiles)):
         logfiles[ii] += '.log'
@@ -477,7 +481,7 @@ def cluster_batchcmd(remotemachine, batchname, resudir):
     Gives the launch command to start a background job.
     Suited for platforms w/o scheduler.
     """
-    machineid = ''
+    # machineid = ''
     localcmd = '"cd '+resudir+' ; bash '+os.path.basename(batchname)+'_launcher"'
     cmd = 'ssh -q -o "BatchMode yes" -oStrictHostKeyChecking=no '+remotemachine+' '+localcmd+' &'
     return cmd
@@ -621,7 +625,7 @@ def gcp_launch_jobs(batchnames, resudir, machinename, platformparams,
 
 def run_simus(simulfile, params2modify, batchid='DEBUGruns',
               machinename='localhost', npermachine=1, platformparams=None,
-              overwrite=False):
+              overwrite=False, file_extension='', only_simulfiles=False):
     """
     Run simulations as defined in the simulation file.
 
@@ -681,25 +685,18 @@ def run_simus(simulfile, params2modify, batchid='DEBUGruns',
         if reply=='y':
             os.system('mkdir -p ' + resudir)
         else:
-            quit()
+            return
 
-    actual2base = resudir+'/'+simulfile
-    # Wait until there is no chance of replacing anything
-    while os.path.exists(actual2base):
-        print('Waiting until this is removed: %s' % actual2base)
-        time.sleep(5)
-
-    # Then, create the temporary base file    
-    fid2write = open(actual2base, 'wt');
+    # Then, get the lines of a temporary base file    
     fid2read  = open(simulfile, 'rt');
-
+    all_lines = []
     for line in fid2read: 
         # Do we need to replace this file?
         param_values = is_param_def(line, params2modify)
         if param_values is None:
             # -1 for the linefeed at the end of the line. Hope this doesn't 
             # depend on the file format...
-            print('%s' % line[:-1], file=fid2write)
+            all_lines.append('%s' % line[:-1])
         else:
             param  = param_values[0]
             values = param_values[1]
@@ -711,15 +708,18 @@ def run_simus(simulfile, params2modify, batchid='DEBUGruns',
                 first = False
                 line2write += str(value)
             line2write += '}}'
-            print(line2write, file=fid2write)
+            # print(line2write, file=fid2write)
+            all_lines.append(line2write)
     
-    fid2write.close();
     fid2read.close();
-
     
+    # No need for extension
+    basename = os.path.splitext(simulfile)[0]
+
     # Then, expand the base script
-    batchlen, nicks, files = create_batches_func(actual2base, resudir, dowrite=0, 
-                                                 runcmd=runcmd, strid=strid, nickstr=nickstr)
+    batchlen, nicks, files = create_batches_func(basename, resudir, dowrite=0, 
+                                                 runcmd=runcmd, strid=strid, nickstr=nickstr,
+                                                 all_lines=all_lines, file_extension=file_extension)
 
     # Create the individual script files
     print('%d scripts ready for writing. e.g. %s' % (batchlen, files[0]))
@@ -727,34 +727,39 @@ def run_simus(simulfile, params2modify, batchid='DEBUGruns',
     if len(reply)==0:
         reply='y'
     if reply=='y':
-        batchlen, nicks, batchfiles = create_batches_func(actual2base, resudir, 
+        batchlen, nicks, batchfiles = create_batches_func(basename, resudir, 
                                                           dowrite=1, runcmd=runcmd, 
                                                           strid=strid, nickstr=nickstr,
-                                                          commentid=commentid, batchid=batchid)
-    # Then, remove temporary base file
-    os.system('rm '+actual2base)
-
+                                                          commentid=commentid, batchid=batchid,
+                                                          all_lines=all_lines, file_extension=file_extension,
+                                                          only_simulfiles=only_simulfiles)
     if reply != 'y':
-        quit()
+        return
+
+    if only_simulfiles:
+        return
 
     # Copy necessary files to resudir, if so needed
     for file2copy in files2copy.split(', '):
         if len(file2copy) == 0:
             continue
-        if not os.path.exists(file2copy):
+        #if not os.path.exists(file2copy): # does not work with wildcards
+        all2copy = glob.glob(file2copy)
+        if len(all2copy)==0:
             raise(ValueError('File to copy not found: %s' % file2copy))
 
-        # Let's not copy large binaries since that takes very long...
-        docopy = True
-        if file2copy.endswith('.fits'):
-            if os.path.exists(resudir+'/'+file2copy):
-                docopy = False
-
-        if docopy:
-            print('Copying %s to %s' % (file2copy, resudir))
-            os.system('cp '+file2copy +' '+ resudir)
-        else:
-            print('File exists: %s/%s' % (resudir, file2copy))
+        for thecopy in all2copy:    
+            # Let's not copy large binaries since that takes very long...
+            docopy = True
+            if thecopy.endswith('.fits'):
+                if os.path.exists(resudir+'/'+thecopy):
+                    docopy = False
+    
+            if docopy:
+                print('Copying %s to %s' % (thecopy, resudir))
+                os.system('cp '+thecopy +' '+ resudir)
+            else:
+                print('File exists: %s/%s' % (resudir, thecopy))
 
 
     # Then, we are ready to run
@@ -767,13 +772,13 @@ def run_simus(simulfile, params2modify, batchid='DEBUGruns',
 
         # Check, if the log files already exist
         if not overwrite:
-            logfiles = get_logfiles(simulfile, params2modify)
+            logfiles = get_logfiles(basename, params2modify, file_extension=file_extension)
             for logfile in logfiles:
                 if not os.path.exists(logfile):
                     break
                 else:
                     print('All the log files exist and overwrite forbidden. Nothing to do.')
-                    quit()
+                    return
 
         if platformparams is None:
             bare_launch_jobs(batchfiles, resudir, machinename, 
