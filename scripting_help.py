@@ -802,7 +802,7 @@ def gcp_launch_jobs_flex(batchnames, localdir, commondir, machinename, platformp
                     if len(output)==0:
                         # Our job is not running there.
                         # Final check, is it finished?
-                        if is_localjob_finished(slavename, localdir, batchname, commondir):
+                        if is_localjob_finished(slavename, localdir, batchnames[jobid], commondir):
                             jobsdone[jobid] = 1
                             slavejobs.pop(slavejobs.index(slavejob))
                         else:
