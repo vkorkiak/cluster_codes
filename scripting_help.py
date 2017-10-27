@@ -286,6 +286,10 @@ def get_scriptfiles(basename, params2modify):
     files = add2base([], localdir+'/'+basename+'__', params2modify)
     return files
 
+def get_nicks_bare(params2modify):
+    files = add2base([], '', params2modify)
+    return files
+
 
 
 def get_batchcmd(nmachines, machinename, batchpos, batchname, localdir):
@@ -307,7 +311,8 @@ def get_batchcmd(nmachines, machinename, batchpos, batchname, localdir):
 
 
 def bare_launch_jobs(batchnames, localdir, machinename,
-                     nmachines=1, npermachine=8, start_delay=0):
+                     nmachines=1, npermachine=8, start_delay=0,
+                     overwrite=False):
     """
     Launches a series of simulations.
 
@@ -323,6 +328,14 @@ def bare_launch_jobs(batchnames, localdir, machinename,
     batchinds = np.zeros(nsimulbatch)
     batchruns = np.zeros(nsimulbatch)
     
+    # Remove log files, if overwriting
+    if overwrite:
+        for batchname in batchnames:
+            logname = localdir+'/'+os.path.basename(batchname)+'.log'
+            if os.path.exists(logname):
+                print('batchfile %s OVERWRITING.' % (batchname))
+                os.system('rm '+logname)
+
     for i in range(0,nbatch):
         # Is there space in the batch?
         # Lets wait until there is space
@@ -585,7 +598,7 @@ def gcp_launch_jobs_fixed(batchnames, localdir, machinename, platformparams,
         else:
             remotemachine = slaves[batchpos1]
             print('%d: --- batchfile %s starts on %s. Job %d/%d there.' % (i, batchnames[i], remotemachine, batchpos2, npermachine))
-            cmd = cluster_batchcmd(remotemachine, batchnames[i], commondir)
+            cmd = cluster_batchcmd(remotemachine, batchnames[i], localdir)
             os.system(cmd)
             # Wait a moment before next launch
             time.sleep(start_delay)
@@ -1030,7 +1043,7 @@ def run_simus(simulfile, params2modify, batchid='DEBUGruns',
 
         if platformparams is None:
             bare_launch_jobs(batchfiles, commondir, machinename, 
-                             npermachine=npermachine)
+                             npermachine=npermachine, overwrite=overwrite)
         else:
             gcp_launch_jobs_flex(batchfiles, localdir, commondir, machinename, platformparams,
                                  npermachine=npermachine, overwrite=overwrite, runcmd=runcmd)
