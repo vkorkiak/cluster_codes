@@ -786,7 +786,7 @@ def gcp_launch_jobs_flex(batchnames, localdir, commondir, machinename, platformp
 
 
         # Have some slaves died? Have some jobs crashed?
-        if loopcnt % 100 == 0:
+        if loopcnt % 10 == 0:
             for slavejob in slavejobs:
                 slavename, jobid = slavejob
                 restart_job = False
@@ -796,7 +796,7 @@ def gcp_launch_jobs_flex(batchnames, localdir, commondir, machinename, platformp
                 else:
                     # Check if the job there is still running
                     cmd = 'ssh -q -oStrictHostKeyChecking=no '+slavename+' "ps aux | grep '+runcmd1st+' | grep -v grep"'
-                    print(cmd)
+                    # print(cmd)
                     proc=subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, )
                     output = (proc.communicate()[0]).decode()
                     if len(output)==0:
