@@ -856,7 +856,7 @@ def gcp_create_default_slavetemplate(template2create='slave-template-c1-mem6'):
             print('Template found: %s' % template2create)
             return
 
-    cmd = """gcloud compute instance-templates create slave-template-c1-mem6 \
+    cmd = """gcloud compute instance-templates create """+template2create+""" \
 --custom-memory=6656MiB \
 --custom-cpu=1 \
 --no-address \
