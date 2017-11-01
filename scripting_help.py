@@ -838,8 +838,10 @@ def gcp_launch_jobs_flex(batchnames, localdir, commondir, machinename, platformp
 
 
 
-def gcp_create_default_slavetemplate():
-    template2create = 'slave-template-c1-mem6'
+def gcp_create_default_slavetemplate(template2create='slave-template-c1-mem6'):
+    """
+    Creates a default template for running jobs.
+    """
     print('Checking instance templates for: %s' % template2create)
     cmd = 'gcloud compute instance-templates list';
     # cmd = 'gcloud compute instances list'
