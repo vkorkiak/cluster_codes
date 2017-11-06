@@ -817,7 +817,7 @@ def gcp_launch_jobs_flex(batchnames, localdir, commondir, machinename, platformp
             
         # Wait before next checks
         loopcnt += 1
-        time.sleep(2)
+        time.sleep(0.1)
 
     print('All the jobs are finished!')
 
