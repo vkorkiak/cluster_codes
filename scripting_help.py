@@ -22,6 +22,9 @@ import socket
 import copy
 import glob
 import random
+import getpass
+
+import slave_monitor
 
 def findval(fname, varname, isnum):
     uval=0;    
@@ -647,29 +650,47 @@ def gcp_launch_jobs_fixed(batchnames, localdir, machinename, platformparams,
  
 
 
-def check_ssh_access(slave):
+def check_slave_access(slave, ssh_launch=False):
     # Check that ssh works to the slaves. Try a few times, because the slaves might
     # not wake up immediately...
-    for ii in range(4):
-        cmd = 'ssh -q -oStrictHostKeyChecking=no '+slave+' "ls"'
-        proc=subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE,)
-        output = (proc.communicate()[0]).decode()
-        if 'ultimateglao' in output: break # slave should have directory "ultimateglao" in home
-        print('Could not yet access: %s' % slave)
-        time.sleep(3)
-    else:
+
+    if ssh_launch:
+        for ii in range(4):        
+            cmd = 'ssh -q -oStrictHostKeyChecking=no '+slave+' "ls"'
+            proc=subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE,)
+            output = (proc.communicate()[0]).decode()
+            if 'ultimateglao' in output: break # slave should have directory "ultimateglao" in home
+            print('Could not yet access: %s' % slave)
+            time.sleep(3)
+        else:
+            return False
+        return True
+
+    try:
+        data = slave_monitor.exists(slave, 'MOIMOI')
+    except:
         return False
+
     return True
 
 
-def is_localjob_finished(slavename, localdir, batchname, commondir):
+def is_localjob_finished(slavename, localdir, batchname, commondir, ssh_launch=False):
 
     local_logname = localdir+'/'+os.path.basename(batchname)+'.log'
-    cmd = 'ssh -q -oStrictHostKeyChecking=no '+slavename+' "grep -s COUCOU '+local_logname+'"'
-    proc=subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, )
-    output = (proc.communicate()[0]).decode()
-    if len(output)==0:
-        return False # Not finished
+    if ssh_launch:
+        cmd = 'ssh -q -oStrictHostKeyChecking=no '+slavename+' "grep -s COUCOU '+local_logname+'"'
+        proc=subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, )
+        output = (proc.communicate()[0]).decode()
+        if len(output)==0:
+            return False # Not finished
+    else:
+        try:
+            if slave_monitor.hascoucou(slavename, local_logname)!=b'1':
+                return False
+        except Exception as e:
+            print('hascoucou has problem. %s' % str(e))
+            return False
+
     # Move the log file to a common place
     cmd = 'scp -q -oStrictHostKeyChecking=no '+slavename+':'+local_logname+' '+commondir
     # print(cmd)
@@ -680,7 +701,8 @@ def is_localjob_finished(slavename, localdir, batchname, commondir):
 
 
 def gcp_launch_jobs_flex(batchnames, localdir, commondir, machinename, platformparams,
-                         overwrite=False, npermachine=8, start_delay=0, runcmd='python3'):
+                         overwrite=False, npermachine=8, start_delay=0, runcmd='python3', 
+                         ssh_launch=False):
     """
     Launches a series of simulations. The number of machines is flexible.
     For the moment, only one job per remote machine.
@@ -694,6 +716,9 @@ def gcp_launch_jobs_flex(batchnames, localdir, commondir, machinename, platformp
     # How many slaves do we have?
     gcp_create_slaves(platformparams, do_checks=False)
     
+    if 'ssh_launch' in platformparams:
+        ssh_launch=True
+
     instance_group_name = platformparams['instance_group_name']
     master_instance = socket.gethostname()
     zone = gcp_check_instance_zone(master_instance)
@@ -703,6 +728,7 @@ def gcp_launch_jobs_flex(batchnames, localdir, commondir, machinename, platformp
     if 'delete_instancegroup' in platformparams:
         delete_instancegroup = platformparams['delete_instancegroup']
 
+    slave_names = []
     nbatch      = len(batchnames)
     jobs2do     = np.ones(nbatch)
     jobsdone    = np.zeros(nbatch)
@@ -739,11 +765,12 @@ def gcp_launch_jobs_flex(batchnames, localdir, commondir, machinename, platformp
 
 
         # Where to launch the next job?
-        slave_names = gcp_instance_names(instance_group_name, zone)
-        if len(slave_names) == 0:
-            print('No slaves yet...')
-            time.sleep(5)
-            continue
+        if len(slave_names)==0:
+            slave_names = gcp_instance_names(instance_group_name, zone)
+            if len(slave_names) == 0:
+                print('No slaves yet...')
+                time.sleep(5)
+                continue
         # Pick a slave
         slaves_used = [s[0] for s in slavejobs]
         randslaves = copy.copy(slave_names); random.shuffle(randslaves)
@@ -758,9 +785,9 @@ def gcp_launch_jobs_flex(batchnames, localdir, commondir, machinename, platformp
         if (slave2use is not None) and  jobs2do[curjobid]:
             # Is the slave ready to go?
             for iter in range(4):
-                if check_ssh_access(slave):
+                if check_slave_access(slave2use, ssh_launch=ssh_launch):
                     break
-                print('Waiting for SSH access to slave %s' % slave2use)
+                print('Waiting for access to slave %s' % slave2use)
                 time.sleep(4)
             else:
                 continue # slave didn't work out
@@ -769,8 +796,15 @@ def gcp_launch_jobs_flex(batchnames, localdir, commondir, machinename, platformp
             jobs2do[curjobid] = 0
             remotemachine = slave2use
             print('%d: --- batchfile %s starts on %s. Job %d/%d there.' % (curjobid, batchname, remotemachine, 0, npermachine))
-            cmd = cluster_batchcmd(remotemachine, batchname, commondir)
-            os.system(cmd)
+            if ssh_launch:
+                cmd = cluster_batchcmd(remotemachine, batchname, commondir)
+                os.system(cmd)
+            else:
+                localcmd = 'cd '+commondir+' ; bash '+os.path.basename(batchname)+'_launcher &'
+                ret = slave_monitor.launch_job(remotemachine, localcmd)
+                if ret!=b'ok':
+                    raise(ValueError('Failed to launch a job on slave. ret: %s' % str(ret)))
+
             # Wait a moment before next launch
             time.sleep(start_delay)
             # Indicate the job has started
@@ -780,29 +814,41 @@ def gcp_launch_jobs_flex(batchnames, localdir, commondir, machinename, platformp
         # Are some of the jobs (that we started) finished?
         for slavejob in slavejobs:
             slavename, jobid = slavejob
-            if is_localjob_finished(slavename, localdir, batchnames[jobid], commondir):
+            if is_localjob_finished(slavename, localdir, batchnames[jobid], commondir, ssh_launch=ssh_launch):
                 jobsdone[jobid] = 1
                 slavejobs.pop(slavejobs.index(slavejob))
 
 
         # Have some slaves died? Have some jobs crashed?
         if loopcnt % 10 == 0:
-            for slavejob in slavejobs:
+            jobs2enumerate = copy.copy(slavejobs)
+            for slavejob in jobs2enumerate:
                 slavename, jobid = slavejob
                 restart_job = False
-                if check_ssh_access(slavename) == False:
-                    print('No SSH acess to %s. Restarting job %d: %s' % (slavename, jobid, batchnames[jobid]))
+                if check_slave_access(slavename, ssh_launch=ssh_launch) == False:
+                    print('No slave acess to %s. Restarting job %d: %s' % (slavename, jobid, batchnames[jobid]))
+                    slave_names = [] # ask these again, to be sure
                     restart_job = True
                 else:
                     # Check if the job there is still running
-                    cmd = 'ssh -q -oStrictHostKeyChecking=no '+slavename+' "ps aux | grep '+runcmd1st+' | grep -v grep"'
-                    # print(cmd)
-                    proc=subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, )
-                    output = (proc.communicate()[0]).decode()
-                    if len(output)==0:
+                    localjob_running = True
+                    
+                    if ssh_launch:
+                        cmd = 'ssh -q -oStrictHostKeyChecking=no '+slavename+' "ps aux | grep '+runcmd1st+' | grep -v grep"'
+                        # print(cmd)
+                        proc=subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, )
+                        output = (proc.communicate()[0]).decode()
+                        if len(output)==0:
+                            localjob_running = False
+                    else:
+                        if slave_monitor.request_status(slavename, runcmd1st) != b'1':
+                            localjob_running = False
+
+                    # print('slavename: %s. job %d. stat: %d.' % (slavename, jobid, localjob_running))
+                    if localjob_running == False:
                         # Our job is not running there.
                         # Final check, is it finished?
-                        if is_localjob_finished(slavename, localdir, batchnames[jobid], commondir):
+                        if is_localjob_finished(slavename, localdir, batchnames[jobid], commondir, ssh_launch=ssh_launch):
                             jobsdone[jobid] = 1
                             slavejobs.pop(slavejobs.index(slavejob))
                         else:
@@ -843,6 +889,7 @@ def gcp_create_default_slavetemplate(template2create='slave-template-c1-mem6'):
     Creates a default template for running jobs.
     """
     print('Checking instance templates for: %s' % template2create)
+    curuser = getpass.getuser()
     cmd = 'gcloud compute instance-templates list';
     # cmd = 'gcloud compute instances list'
     proc=subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, )
@@ -866,6 +913,7 @@ def gcp_create_default_slavetemplate(template2create='slave-template-c1-mem6'):
 sudo mount -t nfs singlefs-1-vm:/data /common-slavedisk 
 sudo mkdir -p /local_disk/temp_results
 sudo chmod -R a+wrx /local_disk
+sudo -u """+curuser+""" /common-slavedisk/slave_startup_script.sh
 EOF'"""
     print('Launching:')
     print(cmd)
