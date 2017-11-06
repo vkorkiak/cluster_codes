@@ -76,7 +76,7 @@ def monitor_loop():
                         answer = b'1'
                     else:
                         answer = b'0'
-                    msg('Status %s. %s.' % (toask, answer.decode()))
+                    # msg('Status %s. %s.' % (toask, answer.decode()))
                 except Exception as e:
                     msg('Error in slave_running. %s.' % str(e))
                     answer = b'NACK'
@@ -90,7 +90,7 @@ def monitor_loop():
                     else:
                         answer = b'0'
                         
-                    msg('Exists %s. %s.' % (toask, answer.decode()))
+                    # msg('Exists %s. %s.' % (toask, answer.decode()))
                 except Exception as e:
                     msg('Error in os.path.exists. %s.' % str(e))
                     answer = b'NACK'
@@ -110,7 +110,7 @@ def monitor_loop():
                     else:
                         answer = b'0' # file does not exist
 
-                    msg('Has COUCOU %s. %s.' % (toask, answer.decode()))
+                    # msg('Has COUCOU %s. %s.' % (toask, answer.decode()))
                 except Exception as e:
                     msg('Error in HASCOUCOU. %s.' % str(e))
                     answer = b'NACK'
