@@ -15,13 +15,26 @@ import os
 monitor_tcpport = 6669
 
 
+homedir = os.path.expanduser("~")
+log_file_name = homedir+'/slave_monitor.log'
+log_file = open(log_file_name, 'w') # Truncate log file
+log_file.close()
+log_file = open(log_file_name, 'a') # Append to this file
+
+
+def msg(txt):
+    print(txt, file=log_file)
+    log_file.flush()
+
+
+
 def slave_running(program_name):
     """
     Checks if a slave is running.
     """
     
     cmd = 'ps aux | grep '+program_name+' | grep -v grep'
-    # print(cmd)
+    # msg(cmd)
     proc=subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, )
     output = (proc.communicate()[0]).decode()
     if len(output)==0:
@@ -49,11 +62,11 @@ def monitor_loop():
         try:
             (conn, address) = serversocket.accept()
         except KeyboardInterrupt:
-            print('Time to go')
+            msg('Time to go')
             break
             
         try:
-            print('Woke up...')
+            # msg('Woke up...')
             data = conn.recv(1024)
                         
             if data.startswith(b'REQ#STATUS'):
@@ -63,9 +76,9 @@ def monitor_loop():
                         answer = b'1'
                     else:
                         answer = b'0'
-                        
+                    # msg('Status %s. %s.' % (toask, answer.decode()))
                 except Exception as e:
-                    print('Error in slave_running. %s.' % str(e))
+                    msg('Error in slave_running. %s.' % str(e))
                     answer = b'NACK'
                     
                     
@@ -77,22 +90,44 @@ def monitor_loop():
                     else:
                         answer = b'0'
                         
+                    # msg('Exists %s. %s.' % (toask, answer.decode()))
                 except Exception as e:
-                    print('Error in os.path.exists. %s.' % str(e))
+                    msg('Error in os.path.exists. %s.' % str(e))
+                    answer = b'NACK'
+
+
+            elif data.startswith(b'REQ#HASCOUCOU'):
+                try:
+                    toask = data[len('REQ#HASCOUCOU'):].decode()
+                    if os.path.exists(toask):
+                        cmd = 'grep -s COUCOU '+toask
+                        proc=subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, )
+                        output = (proc.communicate()[0]).decode()
+                        if len(output)==0:
+                            answer = b'0' # Not finished
+                        else:
+                            answer = b'1'
+                    else:
+                        answer = b'0' # file does not exist
+
+                    # msg('Has COUCOU %s. %s.' % (toask, answer.decode()))
+                except Exception as e:
+                    msg('Error in HASCOUCOU. %s.' % str(e))
                     answer = b'NACK'
                 
 
             elif data.startswith(b'REQ#STARTJOB'):
                 try:
                     job = data[len('REQ#STARTJOB'):].decode()
+                    msg('LAUNCHING: %s' % job)
                     ret = os.system(job)
                     if ret==0:
                         answer = b'ok'
                     else:
-                        answer = str(ret)
+                        answer = str(ret).encode('utf-8')
                         
                 except Exception as e:
-                    print('Error in job launch. %s.' % str(e))
+                    msg('Error in job launch. %s.' % str(e))
                     answer = b'NACK'
 
 
@@ -101,14 +136,15 @@ def monitor_loop():
                 answer = b'ok'
                 conn.send(answer)
                 break
+
                     
             else:            
-                print(data)
+                msg(data)
                 answer = b'NACK'
                 
             conn.send(answer)
         except Exception as e:
-            print('Error in loop. %s.' % str(e))
+            msg('Error in loop. %s.' % str(e))
             
     try:
         conn.close()    
@@ -117,8 +153,9 @@ def monitor_loop():
     try:
         serversocket.close()
     except Exception as e:
-            print('Error. %s.' % str(e))
-        
+            msg('Error. %s.' % str(e))
+
+    msg('Quitting monitor loop...')
   
     
     
@@ -157,7 +194,22 @@ def launch_job(server_addr, cmd):
     s.close()
     return data
 
-def stop_slavemonitor(server_addr):
+def hascoucou(server_addr, fname):
+    """
+    A client side program can use this method to check if slave has finished.
+    """
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.connect((server_addr, monitor_tcpport))
+    s.send(b'REQ#HASCOUCOU'+fname.encode('utf-8'))
+    data = s.recv(1024)
+    s.close()
+    return data
+
+
+def kill_server(server_addr):
+    """
+    A client side program can use this method to kill the server.
+    """
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.connect((server_addr, monitor_tcpport))
     s.send(b'REQ#QUIT')
@@ -169,11 +221,10 @@ def stop_slavemonitor(server_addr):
 
 
 
-
 if __name__ == "__main__":
     
     #isrunning = slave_running('yorick')    
-    #print(isrunning)
+    #msg(isrunning)
     
-    print('Monitor loop begins...')
+    msg('Monitor loop begins...')
     monitor_loop()
