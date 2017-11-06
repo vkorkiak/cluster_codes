@@ -95,6 +95,12 @@ def monitor_loop():
                     print('Error in job launch. %s.' % str(e))
                     answer = b'NACK'
 
+
+            elif data.startswith(b'REQ#QUIT'):
+                print('Request to quit')
+                answer = b'ok'
+                conn.send(answer)
+                break
                     
             else:            
                 print(data)
@@ -151,7 +157,13 @@ def launch_job(server_addr, cmd):
     s.close()
     return data
 
-
+def stop_slavemonitor(server_addr):
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.connect((server_addr, monitor_tcpport))
+    s.send(b'REQ#QUIT')
+    data = s.recv(1024)
+    s.close()
+    return data
 
 
 
