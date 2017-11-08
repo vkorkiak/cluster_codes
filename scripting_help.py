@@ -923,7 +923,8 @@ EOF'"""
 
 def run_simus(simulfile, params2modify, batchid='DEBUGruns',
               machinename='localhost', npermachine=1, platformparams=None,
-              overwrite=False, only_simulfiles=False, file_extension=None):
+              overwrite=False, only_simulfiles=False, file_extension=None,
+              commondir=None):
     """
     Run simulations as defined in the simulation file.
 
@@ -948,8 +949,9 @@ def run_simus(simulfile, params2modify, batchid='DEBUGruns',
         raise(ValueError('Could not find %s' % simulfile))
 
     
+    if commondir is None:
+        commondir = extract_value(simulfile, '_commondir')
     localdir    = extract_value(simulfile, '_localdir')
-    commondir   = extract_value(simulfile, '_commondir')
     runcmd      = extract_value(simulfile, '_runcmd') + ' '
     nickstr     = extract_value(simulfile, '_nickstr')
     files2copy  = extract_value(simulfile, '_files2copy')
@@ -994,8 +996,11 @@ def run_simus(simulfile, params2modify, batchid='DEBUGruns',
         # Do we need to replace this file?
         param_values = is_param_def(line, params2modify)
         if param_values is None:
-            if line.split('=')[0].strip() == '_masternode':
+            tst = line.split('=')[0].strip()
+            if tst == '_masternode':
                 line = '_masternode = '+strid+socket.gethostname()+strid+';'+'f'
+            elif tst == '_commondir':
+                line = '_commondir = '+strid+commondir+strid+';'+'f'
 
             # -1 for the linefeed at the end of the line. Hope this doesn't 
             # depend on the file format...
