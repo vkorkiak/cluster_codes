@@ -798,31 +798,28 @@ def gcp_launch_jobs_flex(batchnames, localdir, commondir, machinename, platformp
         # Lauch the job
         if (slave2use is not None) and  jobs2do[curjobid]:
             # Is the slave ready to go?
-            for iter in range(4):
-                if check_slave_access(slave2use, ssh_launch=ssh_launch):
-                    break
-                print('Waiting for access to slave %s' % slave2use)
-                time.sleep(4)
-            else:
-                continue # slave didn't work out
+            if check_slave_access(slave2use, ssh_launch=ssh_launch):
+                # Start the background job
+                jobs2do[curjobid] = 0
+                remotemachine = slave2use
+                print('%d: --- batchfile %s starts on %s. Job %d/%d there.' % (curjobid, batchname, remotemachine, 0, npermachine))
+                if ssh_launch:
+                    cmd = cluster_batchcmd(remotemachine, batchname, commondir)
+                    os.system(cmd)
+                else:
+                    localcmd = 'cd '+commondir+' ; bash '+os.path.basename(batchname)+'_launcher &'
+                    ret = slave_monitor.launch_job(remotemachine, localcmd)
+                    if ret!=b'ok':
+                        # raise(ValueError('Failed to launch a job on slave. ret: %s' % str(ret)))
+                        print('Failed to launch a job on slave: '+remotemachine)
+                        continue
 
-            # Start the background job
-            jobs2do[curjobid] = 0
-            remotemachine = slave2use
-            print('%d: --- batchfile %s starts on %s. Job %d/%d there.' % (curjobid, batchname, remotemachine, 0, npermachine))
-            if ssh_launch:
-                cmd = cluster_batchcmd(remotemachine, batchname, commondir)
-                os.system(cmd)
+                # Wait a moment before next launch
+                time.sleep(start_delay)
+                # Indicate the job has started
+                slavejobs.append((slave2use, curjobid))
             else:
-                localcmd = 'cd '+commondir+' ; bash '+os.path.basename(batchname)+'_launcher &'
-                ret = slave_monitor.launch_job(remotemachine, localcmd)
-                if ret!=b'ok':
-                    raise(ValueError('Failed to launch a job on slave. ret: %s' % str(ret)))
-
-            # Wait a moment before next launch
-            time.sleep(start_delay)
-            # Indicate the job has started
-            slavejobs.append((slave2use, curjobid))
+                print('Could not access slave %s' % slave2use)
 
 
         # Are some of the jobs (that we started) finished?
