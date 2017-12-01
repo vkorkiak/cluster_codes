@@ -313,9 +313,9 @@ def get_batchcmd(nmachines, machinename, batchpos, batchname, localdir):
 
 
 
-def bare_launch_jobs(batchnames, localdir, machinename,
+def bare_launch_jobs(batchnames, commondir, machinename,
                      nmachines=1, npermachine=8, start_delay=0,
-                     overwrite=False):
+                     overwrite=False, localdir=None):
     """
     Launches a series of simulations.
 
@@ -325,11 +325,15 @@ def bare_launch_jobs(batchnames, localdir, machinename,
     in parallel on a cluster without scheduler.
     """
 
+    if localdir is None:
+        localdir = commondir
+
     nsimulbatch = npermachine * nmachines
     
     nbatch    = len(batchnames)
-    batchinds = np.zeros(nsimulbatch)
-    batchruns = np.zeros(nsimulbatch)
+    batchinds = np.zeros(nsimulbatch, dtype=int)
+    batchruns = np.zeros(nsimulbatch, dtype=int)
+    jobsdone  = np.zeros(nbatch, dtype=int)
     
     # Remove log files, if overwriting
     if overwrite:
@@ -339,7 +343,10 @@ def bare_launch_jobs(batchnames, localdir, machinename,
                 print('batchfile %s OVERWRITING.' % (batchname))
                 os.system('rm '+logname)
 
-    for i in range(0,nbatch):
+    # for i in range(0,nbatch):
+    i = 0
+    while np.sum(jobsdone) < nbatch:
+
         # Is there space in the batch?
         # Lets wait until there is space
         while np.sum(batchruns) >= nsimulbatch:
@@ -347,33 +354,40 @@ def bare_launch_jobs(batchnames, localdir, machinename,
                 if batchruns[u]:
                     # Check if the job is finished. By default, we think it is running.
                     batchruns[u] = 1
-                    logname = localdir+'/'+os.path.basename(batchnames[int(batchinds[u])])+'.log'
+                    logname = localdir+'/'+os.path.basename(batchnames[batchinds[u]])+'.log'
                     if os.path.exists(logname):
                         if os.system('grep COUCOU '+logname+' > /dev/null') == 0:
                             batchruns[u] = 0
+                            # Job is done. Copy log file, if needed
+                            cmd = 'mv '+logname+' '+commondir+'/'+os.path.basename(logname)
+                            print('Moving: '+cmd)
+                            os.system(cmd)
+                            jobsdone[batchinds[u]] = 1
             time.sleep(2)
 
         batchpos = np.min(np.where(batchruns == 0))
     
-        if 1==1:
+        if i < nbatch:
             # Start the background job
             isFinished = False
-            logname = localdir+'/'+os.path.basename(batchnames[i])+'.log'
+            logname = commondir+'/'+os.path.basename(batchnames[i])+'.log'
             if os.path.exists(logname):
                 cmd = 'grep COUCOU '+ logname + ' > /dev/null'
                 isFinished = not os.system(cmd)
     
             if isFinished:
                 print('%d: --- batchfile %s ALREADY DONE.' % (i, batchnames[i]))
+                jobsdone[i] = 1
             else:
                 print('%d: --- batchfile %s starts...' % (i, batchnames[i]))
-                cmd = get_batchcmd(nmachines, machinename, batchpos, batchnames[i], localdir)
+                cmd = get_batchcmd(nmachines, machinename, batchpos, batchnames[i], commondir)
                 os.system(cmd)
                 # Wait a moment before next launch
                 time.sleep(start_delay)
     
-        batchinds[batchpos] = i
-        batchruns[batchpos] = 1
+                batchinds[batchpos] = i
+                batchruns[batchpos] = 1
+        i += 1
 
 
 
@@ -1098,7 +1112,7 @@ def run_simus(simulfile, params2modify, batchid='DEBUGruns',
 
         if platformparams is None:
             bare_launch_jobs(batchfiles, commondir, machinename, 
-                             npermachine=npermachine, overwrite=overwrite)
+                             npermachine=npermachine, overwrite=overwrite, localdir=localdir)
         else:
             gcp_launch_jobs_flex(batchfiles, localdir, commondir, machinename, platformparams,
                                  npermachine=npermachine, overwrite=overwrite, runcmd=runcmd)
