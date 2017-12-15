@@ -27,10 +27,10 @@ import getpass
 import slave_monitor
 
 def findval(fname, varname, isnum):
-    uval=0;    
+    uval=0;
     f = open(fname, 'r');
     count = 0;
-    
+
     for line in f:
         #print(count)
         strs = line.split(' =')
@@ -40,7 +40,7 @@ def findval(fname, varname, isnum):
                 uval = uval.replace('"', '')
                 uval = uval.replace('\n', '')
                 uval = uval.lstrip().rstrip()
-    
+
                 if isnum==0:
                     return uval
                 return float(eval(uval.replace(';', '').replace('f', '')))
@@ -76,7 +76,7 @@ def extract_value(simulfile, param):
 
 
 def replace_basescriptval(all_lines, fname, curnick, \
-                          batchlen, all_nicks, all_batchfiles, dowrite=0, 
+                          batchlen, all_nicks, all_batchfiles, dowrite=0,
                           strid='"', nickstr='__theNICK', commentid=None,
                           batchid='DEBUG', file_extension=''):
     """
@@ -86,47 +86,50 @@ def replace_basescriptval(all_lines, fname, curnick, \
 
     #fprintf('%s\n', curnick);
     reg = re.compile('\{\{.*\}\}')
-    
+
     for cli, curline in enumerate(all_lines):
         # Check if we find a line to enumerate
         vals = reg.search(curline)
-    
+
         if vals:
             # Copy the lines
             all_lines2 = all_lines.copy();
-    
+
             # Enumerate the values of the line
             slp = curline.split('=')
+            if slp[1].strip()[0] == strid: # HACK to enable stings for values
+                usestr = strid; slp[1] = slp[1].replace(strid, '')
+            else: usestr = ''
             nick = slp[0].lstrip().rstrip()
             allvals = slp[1].replace('{','').replace('}','').split(',')
             for valstr in allvals:
                 indent = len(curline) - len(curline.lstrip(' '))
-                all_lines2[cli] = ' '*indent+nick+'='+valstr.lstrip().rstrip()                
+                all_lines2[cli] = ' '*indent+nick+'='+usestr+valstr.lstrip().rstrip()+usestr
                 curnick2 = curnick+'_'+nick+valstr.lstrip().rstrip()
 
                 # Continue expansion
                 batchlen, all_nicks, all_batchfiles = \
-                    replace_basescriptval(all_lines2, fname, curnick2, 
-                                          batchlen, all_nicks, all_batchfiles, dowrite=dowrite, 
+                    replace_basescriptval(all_lines2, fname, curnick2,
+                                          batchlen, all_nicks, all_batchfiles, dowrite=dowrite,
                                           nickstr=nickstr, strid=strid, commentid=commentid,
                                           batchid=batchid, file_extension=file_extension)
-    
+
             return (batchlen, all_nicks, all_batchfiles)
 
     # print, curnick
     fname2 = fname+'__'+curnick+file_extension
-    
+
     # Here could be other replacements...
     all_lines_print = all_lines.copy()
-    
+
     # Replace known strings
     for curline in all_lines_print:
         curline.replace('__NICKS__', curnick);
-    
+
     # Write the new file
     if dowrite:
         print('%s' % (fname2))
-    
+
         fid = open(fname2, 'wt');
         # Nice idea, but gets wrong if the executor has another comment sign
         if commentid is not None:
@@ -134,14 +137,14 @@ def replace_basescriptval(all_lines, fname, curnick, \
             print('%s  AUTOMATICALLY GENERATED FROM FILE:' % (commentid), file=fid);
             print('%s  %s' % (commentid, fname), file=fid);
             print('%s' % (commentid), file=fid);
-    
+
         # TODO -- make this somehow optional/reformattable.
         print('\n%s = %s%s%s;' % (nickstr, strid, curnick, strid), file=fid)
         print('BATCH_ID = %s%s%s;\n\n'  % (strid, batchid, strid), file=fid)
-    
+
         for curline in all_lines_print:
             print('%s' % (curline), file=fid)
-      
+
         fid.close()
 
     all_nicks.append(curnick)
@@ -152,7 +155,7 @@ def replace_basescriptval(all_lines, fname, curnick, \
 
 
 
-def create_batches_func(basefile, localdir, commondir, dowrite=0, runcmd='python', strid='"', 
+def create_batches_func(basefile, localdir, commondir, dowrite=0, runcmd='python', strid='"',
                         nickstr='__theNICK', commentid=None, batchid='DEBUGfunc',
                         all_lines=None, file_extension='', only_simulfiles=False):
     """
@@ -163,57 +166,57 @@ def create_batches_func(basefile, localdir, commondir, dowrite=0, runcmd='python
     #
     # Create a set of batch files.
     #
-    
+
     # Do the expand
     batchlen = 0;
     fname = basefile
-    
+
     if all_lines is None:
         # At first, read all lines into memory
         all_lines = []
         f = open(fname, 'r')
         count = 0;
-        for line in f: 
+        for line in f:
             all_lines.append(line.replace('\n', ''))
             count += 1;
-    
+
     # The recursive part
     batchlen, nicks, batchfiles = replace_basescriptval(all_lines, basefile, '', \
-                                                        batchlen, [], [], dowrite=dowrite, nickstr=nickstr, 
+                                                        batchlen, [], [], dowrite=dowrite, nickstr=nickstr,
                                                         strid=strid, commentid=commentid, batchid=batchid,
                                                         file_extension=file_extension)
 
-    # Finish the writeup      
+    # Finish the writeup
     if dowrite:
         print('The batchfile %s was expanded to %d files:' % (basefile, len(batchfiles)))
         for (fi, fname) in enumerate(batchfiles):
             print('%d: %s' % (fi, fname))
-    
-      
+
+
     print('')
     print('Batches created.\n');
-    
+
 
     if dowrite:
-      
+
         # Move them to the results folder
         for fname in batchfiles:
             if os.path.dirname(fname) != commondir:
                 os.system('mv '+ fname +' ' +commondir);
-      
+
         # Create launcher scripts
         if only_simulfiles == False:
             for fname in batchfiles:
                 batchname = os.path.basename(fname)
                 fid = open(commondir+'/'+batchname + '_launcher', 'wt');
-                
+
                 print('', file=fid);
                 print('# Launch application', file=fid);
                 print(runcmd+' '+batchname+' > '+localdir+'/'+batchname+'.log', file=fid);
                 print('\n', file=fid);
                 print('\n', file=fid);
                 fid.close();
-    
+
                 #fprintf(fid, ['']);
                 #fprintf(fid, ['#PBS -l procs=1\n']);             # launcher specific
                 #fprintf(fid, ['#PBS -l walltime=4:24:30:00\n']); # launcher specific
@@ -225,10 +228,10 @@ def create_batches_func(basefile, localdir, commondir, dowrite=0, runcmd='python
                 #fprintf(fid, ['\n']);
                 #fprintf(fid, ['\n']);
                 #fclose(fid);
-    
+
     # Run the batches by monitoring script that keep trach how many jobs are
     # going on.
-    # 
+    #
     #    run_batches
 
     return (batchlen, nicks, batchfiles)
@@ -248,7 +251,7 @@ def get_paramvals(params2modify):
     return add2base2([], dict(), params2modify)
 
 def get_paraminds(params2modify, conditions):
-    """ 
+    """
     Returns the indices of the sets in params2modify that fulfill the
     given conditions.
     """
@@ -309,7 +312,7 @@ def get_batchcmd(nmachines, machinename, batchpos, batchname, localdir):
     localcmd = '"cd '+localdir+' ; bash '+os.path.basename(batchname)+'_launcher"'
     cmd = 'ssh -q -o "BatchMode yes" '+machinename+machineid+' '+localcmd+' &'
     return cmd
-    
+
 
 
 
@@ -320,7 +323,7 @@ def bare_launch_jobs(batchnames, commondir, machinename,
     Launches a series of simulations.
 
     Jobs are launched directly on the local machine.
-    
+
     This is a modification of Visa's earlier script to launch yao simulations
     in parallel on a cluster without scheduler.
     """
@@ -329,12 +332,12 @@ def bare_launch_jobs(batchnames, commondir, machinename,
         localdir = commondir
 
     nsimulbatch = npermachine * nmachines
-    
+
     nbatch    = len(batchnames)
     batchinds = np.zeros(nsimulbatch, dtype=int)
     batchruns = np.zeros(nsimulbatch, dtype=int)
     jobsdone  = np.zeros(nbatch, dtype=int)
-    
+
     # Remove log files, if overwriting
     if overwrite:
         for batchname in batchnames:
@@ -366,7 +369,7 @@ def bare_launch_jobs(batchnames, commondir, machinename,
             time.sleep(2)
 
         batchpos = np.min(np.where(batchruns == 0))
-    
+
         if i < nbatch:
             # Start the background job
             isFinished = False
@@ -374,7 +377,7 @@ def bare_launch_jobs(batchnames, commondir, machinename,
             if os.path.exists(logname):
                 cmd = 'grep COUCOU '+ logname + ' > /dev/null'
                 isFinished = not os.system(cmd)
-    
+
             if isFinished:
                 print('%d: --- batchfile %s ALREADY DONE.' % (i, batchnames[i]))
                 jobsdone[i] = 1
@@ -384,7 +387,7 @@ def bare_launch_jobs(batchnames, commondir, machinename,
                 os.system(cmd)
                 # Wait a moment before next launch
                 time.sleep(start_delay)
-    
+
                 batchinds[batchpos] = i
                 batchruns[batchpos] = 1
         i += 1
@@ -536,7 +539,7 @@ def gcp_launch_jobs_fixed(batchnames, localdir, machinename, platformparams,
 
     Jobs are launched on a cluster, depending in the settings defined in
     platformparams.
-    
+
     This is a modification of Visa's earlier script to launch yao simulations
     in parallel on a cluster without scheduler.
     """
@@ -571,7 +574,7 @@ def gcp_launch_jobs_fixed(batchnames, localdir, machinename, platformparams,
     batchruns = np.zeros((nmachines, npermachine))
     nparallel = npermachine * nmachines
 
-    
+
     for i in range(nbatch):
         # Is there space in the batch?
         # Lets wait until there is space
@@ -593,11 +596,11 @@ def gcp_launch_jobs_fixed(batchnames, localdir, machinename, platformparams,
         batchpos1 = batchpos2 = None
         for u1 in range(nmachines):
             for u2 in range(npermachine):
-                if batchruns[u1,u2] == 0:                    
+                if batchruns[u1,u2] == 0:
                     batchpos1 = u1
                     batchpos2 = u2
                     break
-    
+
         # Start the background job
         prev_status = 'not_started'
         logname = localdir+'/'+os.path.basename(batchnames[i])+'.log'
@@ -607,7 +610,7 @@ def gcp_launch_jobs_fixed(batchnames, localdir, machinename, platformparams,
                 cmd = 'grep COUCOU '+ logname + ' > /dev/null'
                 if os.system(cmd)==0:
                     prev_status = 'finished'
-    
+
         if prev_status == 'finished':
             print('%d: --- batchfile %s ALREADY DONE.' % (i, batchnames[i]))
         elif prev_status == 'started':
@@ -619,7 +622,7 @@ def gcp_launch_jobs_fixed(batchnames, localdir, machinename, platformparams,
             os.system(cmd)
             # Wait a moment before next launch
             time.sleep(start_delay)
-    
+
         batchinds[batchpos1,batchpos2] = i
         batchruns[batchpos1,batchpos2] = 1
 
@@ -627,7 +630,7 @@ def gcp_launch_jobs_fixed(batchnames, localdir, machinename, platformparams,
     print('Last job has been dispatched!')
     print('Waiting for all the jobs to finish')
 
-    while np.sum(batchruns) !=0:        
+    while np.sum(batchruns) !=0:
         for u1 in range(nmachines):
             for u2 in range(npermachine):
                 if batchruns[u1,u2]:
@@ -661,7 +664,7 @@ def gcp_launch_jobs_fixed(batchnames, localdir, machinename, platformparams,
             print('Instance group deleted.')
 
     print('ALL DONE.')
- 
+
 
 
 def check_slave_access(slave, ssh_launch=False):
@@ -669,7 +672,7 @@ def check_slave_access(slave, ssh_launch=False):
     # not wake up immediately...
 
     if ssh_launch:
-        for ii in range(4):        
+        for ii in range(4):
             cmd = 'ssh -q -oStrictHostKeyChecking=no '+slave+' "ls"'
             proc=subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE,)
             output = (proc.communicate()[0]).decode()
@@ -710,12 +713,12 @@ def is_localjob_finished(slavename, localdir, batchname, commondir, ssh_launch=F
     # print(cmd)
     ret = os.system(cmd)
     if ret != 0:
-        print('scp failed: %s' % cmd)        
+        print('scp failed: %s' % cmd)
     return True
 
 
 def gcp_launch_jobs_flex(batchnames, localdir, commondir, machinename, platformparams,
-                         overwrite=False, npermachine=8, start_delay=0, runcmd='python3', 
+                         overwrite=False, npermachine=8, start_delay=0, runcmd='python3',
                          ssh_launch=False):
     """
     Launches a series of simulations. The number of machines is flexible.
@@ -723,13 +726,13 @@ def gcp_launch_jobs_flex(batchnames, localdir, commondir, machinename, platformp
 
     Jobs are launched on a cluster, depending in the settings defined in
     platformparams.
-    
+
     This is a modification of Visa's earlier script to launch yao simulations
     in parallel on a cluster without scheduler.
     """
     # How many slaves do we have?
     gcp_create_slaves(platformparams, do_checks=False)
-    
+
     if 'ssh_launch' in platformparams:
         ssh_launch=True
 
@@ -756,7 +759,7 @@ def gcp_launch_jobs_flex(batchnames, localdir, commondir, machinename, platformp
 
         batchname = batchnames[curjobid]
         logname = commondir+'/'+os.path.basename(batchname)+'.log'
-        
+
         # Check, if the job is already done
         prev_status = 'not_started'
         if overwrite == False and jobs2do[curjobid]:
@@ -765,7 +768,7 @@ def gcp_launch_jobs_flex(batchnames, localdir, commondir, machinename, platformp
                 cmd = 'grep COUCOU '+ logname + ' > /dev/null'
                 if os.system(cmd)==0:
                     prev_status = 'finished'
-    
+
         if prev_status == 'finished':
             print('%d: --- batchfile %s ALREADY DONE.' % (curjobid, batchname))
             jobsdone[curjobid] = 1
@@ -843,7 +846,7 @@ def gcp_launch_jobs_flex(batchnames, localdir, commondir, machinename, platformp
                 else:
                     # Check if the job there is still running
                     localjob_running = True
-                    
+
                     if ssh_launch:
                         cmd = 'ssh -q -oStrictHostKeyChecking=no '+slavename+' "ps aux | grep '+runcmd1st+' | grep -v grep"'
                         # print(cmd)
@@ -864,14 +867,14 @@ def gcp_launch_jobs_flex(batchnames, localdir, commondir, machinename, platformp
                             slavejobs.pop(slavejobs.index(slavejob))
                         else:
                             #  No, it is not finished
-                            print('Job %d (%s) seems dead on slave %s. Restarting it.' % 
+                            print('Job %d (%s) seems dead on slave %s. Restarting it.' %
                                   (jobid, batchnames[jobid], slavename))
                             restart_job = True
 
                 if restart_job:
                     jobs2do[jobid] = 1
                     slavejobs.pop(slavejobs.index(slavejob))
-            
+
         # Wait before next checks
         loopcnt += 1
         time.sleep(0.1)
@@ -891,7 +894,7 @@ def gcp_launch_jobs_flex(batchnames, localdir, commondir, machinename, platformp
             print('Instance group deleted.')
 
     print('ALL DONE.')
- 
+
 
 
 
@@ -920,8 +923,8 @@ def gcp_create_default_slavetemplate(template2create='slave-template-c1-mem6'):
 --no-address \
 --preemptible \
 --image-family slave-family-1 \
---metadata startup-script='#! /bin/bash 
-sudo mount -t nfs singlefs-1-vm:/data /common-slavedisk 
+--metadata startup-script='#! /bin/bash
+sudo mount -t nfs singlefs-1-vm:/data /common-slavedisk
 sudo mkdir -p /local_disk/temp_results
 sudo chmod -R a+wrx /local_disk
 sudo -u """+curuser+""" /common-slavedisk/slave_startup_script.sh
@@ -930,7 +933,7 @@ EOF'"""
     print(cmd)
     os.system(cmd)
 
-  
+
 
 def run_simus(simulfile, params2modify, batchid='DEBUGruns',
               machinename='localhost', npermachine=1, platformparams=None,
@@ -939,7 +942,7 @@ def run_simus(simulfile, params2modify, batchid='DEBUGruns',
     """
     Run simulations as defined in the simulation file.
 
-    Takes in a script file that contains all the necessary info to run 
+    Takes in a script file that contains all the necessary info to run
     simulation and a list of parameters that need to be modified.
 
     At first, creates a basescript that is accepted by create_batches_func.
@@ -959,7 +962,7 @@ def run_simus(simulfile, params2modify, batchid='DEBUGruns',
     if not os.path.exists(simulfile):
         raise(ValueError('Could not find %s' % simulfile))
 
-    
+
     if commondir is None:
         commondir = extract_value(simulfile, '_commondir')
     localdir    = extract_value(simulfile, '_localdir')
@@ -978,7 +981,7 @@ def run_simus(simulfile, params2modify, batchid='DEBUGruns',
         strid = '"'
     else:
         raise(ValueError('Unknown string id: %s' % str(stridnum)))
-                    
+
     print('Local directory:  %s'  % (localdir))
     print('Common directory: %s'  % (commondir))
     print('Running command: "%s"' % runcmd)
@@ -1000,10 +1003,10 @@ def run_simus(simulfile, params2modify, batchid='DEBUGruns',
         else:
             return
 
-    # Then, get the lines of a temporary base file    
+    # Then, get the lines of a temporary base file
     fid2read  = open(simulfile, 'rt');
     all_lines = []
-    for line in fid2read: 
+    for line in fid2read:
         # Do we need to replace this file?
         param_values = is_param_def(line, params2modify)
         if param_values is None:
@@ -1013,13 +1016,16 @@ def run_simus(simulfile, params2modify, batchid='DEBUGruns',
             elif tst == '_commondir':
                 line = '_commondir = '+strid+commondir+strid+';'+'f'
 
-            # -1 for the linefeed at the end of the line. Hope this doesn't 
+            # -1 for the linefeed at the end of the line. Hope this doesn't
             # depend on the file format...
             all_lines.append('%s' % line[:-1])
         else:
             param  = param_values[0]
             values = param_values[1]
-            line2write = param + ' = {{'
+            if strid in line: # HACK to enable stings: define your default as a str
+                line2write = param + ' = '+strid+'{{'
+            else:
+                line2write = param + ' = {{'
             first = True
             for value in values:
                 if not first:
@@ -1029,9 +1035,9 @@ def run_simus(simulfile, params2modify, batchid='DEBUGruns',
             line2write += '}}'
             # print(line2write, file=fid2write)
             all_lines.append(line2write)
-    
+
     fid2read.close();
-    
+
     # No need for extension
     basename = os.path.splitext(simulfile)[0]
     try:
@@ -1044,7 +1050,7 @@ def run_simus(simulfile, params2modify, batchid='DEBUGruns',
     print('File extension: %s' % file_extension)
 
     # Then, expand the base script
-    batchlen, nicks, files = create_batches_func(basename, localdir, commondir, dowrite=0, 
+    batchlen, nicks, files = create_batches_func(basename, localdir, commondir, dowrite=0,
                                                  runcmd=runcmd, strid=strid, nickstr=nickstr,
                                                  all_lines=all_lines, file_extension=file_extension)
 
@@ -1054,8 +1060,8 @@ def run_simus(simulfile, params2modify, batchid='DEBUGruns',
     if len(reply)==0:
         reply='y'
     if reply=='y':
-        batchlen, nicks, batchfiles = create_batches_func(basename, localdir, commondir, 
-                                                          dowrite=1, runcmd=runcmd, 
+        batchlen, nicks, batchfiles = create_batches_func(basename, localdir, commondir,
+                                                          dowrite=1, runcmd=runcmd,
                                                           strid=strid, nickstr=nickstr,
                                                           commentid=commentid, batchid=batchid,
                                                           all_lines=all_lines, file_extension=file_extension,
@@ -1075,13 +1081,13 @@ def run_simus(simulfile, params2modify, batchid='DEBUGruns',
         if len(all2copy)==0:
             raise(ValueError('File to copy not found: %s' % file2copy))
 
-        for thecopy in all2copy:    
+        for thecopy in all2copy:
             # Let's not copy large binaries since that takes very long...
             docopy = True
             if thecopy.endswith('.fits'):
                 if os.path.exists(commondir+'/'+thecopy):
                     docopy = False
-    
+
             if docopy:
                 print('Copying %s to %s' % (thecopy, commondir))
                 os.system('cp '+thecopy +' '+ commondir)
@@ -1108,11 +1114,10 @@ def run_simus(simulfile, params2modify, batchid='DEBUGruns',
                     return
 
         if platformparams is None:
-            bare_launch_jobs(batchfiles, commondir, machinename, 
+            bare_launch_jobs(batchfiles, commondir, machinename,
                              npermachine=npermachine, overwrite=overwrite, localdir=localdir)
         else:
             gcp_launch_jobs_flex(batchfiles, localdir, commondir, machinename, platformparams,
                                  npermachine=npermachine, overwrite=overwrite, runcmd=runcmd)
     else:
         print('Scripts not launched.')
-
