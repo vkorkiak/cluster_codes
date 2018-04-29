@@ -1090,7 +1090,7 @@ def run_simus(simulfile, params2modify, batchid='DEBUGruns',
 
             if docopy:
                 print('Copying %s to %s' % (thecopy, commondir))
-                os.system('cp '+thecopy +' '+ commondir)
+                os.system('cp -r '+thecopy +' '+ commondir)
             else:
                 print('File exists: %s/%s' % (commondir, thecopy))
 
