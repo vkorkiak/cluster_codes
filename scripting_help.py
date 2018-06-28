@@ -155,7 +155,8 @@ def replace_basescriptval(all_lines, fname, curnick, \
 
 
 
-def create_batches_func(basefile, localdir, commondir, dowrite=0, runcmd='python', strid='"',
+def create_batches_func(basefile, localdir, commondir, dowrite=0,
+                        runcmd='python', strid='"',
                         nickstr='__theNICK', commentid=None, batchid='DEBUGfunc',
                         all_lines=None, file_extension='', only_simulfiles=False):
     """
@@ -181,7 +182,7 @@ def create_batches_func(basefile, localdir, commondir, dowrite=0, runcmd='python
             count += 1;
 
     # The recursive part
-    batchlen, nicks, batchfiles = replace_basescriptval(all_lines, basefile, '', \
+    batchlen, nicks, batchfiles = replace_basescriptval(all_lines, basefile,'',
                                                         batchlen, [], [], dowrite=dowrite, nickstr=nickstr,
                                                         strid=strid, commentid=commentid, batchid=batchid,
                                                         file_extension=file_extension)
@@ -274,11 +275,12 @@ def add2base(allbases, curval, params2modify):
         add2base(allbases, curval+'_'+param+str(val), params2modify[1:])
     return allbases
 
-def get_logfiles(basename, params2modify, file_extension=''):
+def get_logfiles(basename, params2modify, file_extension='', localdir=None):
     """
     Returns a list of log files that results from a base script.
     """
-    localdir = extract_value(basename+file_extension, '_localdir')
+    if localdir is None:
+        localdir = extract_value(basename+file_extension, '_localdir')
     logfiles = add2base([], localdir+'/'+basename+'__', params2modify)
     for ii in range(len(logfiles)):
         logfiles[ii] += '.log'
@@ -938,7 +940,7 @@ EOF'"""
 def run_simus(simulfile, params2modify, batchid='DEBUGruns',
               machinename='localhost', npermachine=1, platformparams=None,
               overwrite=False, only_simulfiles=False, file_extension=None,
-              commondir=None):
+              commondir=None, localdir=None):
     """
     Run simulations as defined in the simulation file.
 
@@ -965,7 +967,8 @@ def run_simus(simulfile, params2modify, batchid='DEBUGruns',
 
     if commondir is None:
         commondir = extract_value(simulfile, '_commondir')
-    localdir    = extract_value(simulfile, '_localdir')
+    if localdir is None:
+        localdir  = extract_value(simulfile, '_localdir')
     runcmd      = extract_value(simulfile, '_runcmd') + ' '
     nickstr     = extract_value(simulfile, '_nickstr')
     files2copy  = extract_value(simulfile, '_files2copy')
@@ -1050,9 +1053,10 @@ def run_simus(simulfile, params2modify, batchid='DEBUGruns',
     print('File extension: %s' % file_extension)
 
     # Then, expand the base script
-    batchlen, nicks, files = create_batches_func(basename, localdir, commondir, dowrite=0,
-                                                 runcmd=runcmd, strid=strid, nickstr=nickstr,
-                                                 all_lines=all_lines, file_extension=file_extension)
+    batchlen, nicks, files = create_batches_func(
+         basename, localdir, commondir, dowrite=0,
+         runcmd=runcmd, strid=strid, nickstr=nickstr,
+         all_lines=all_lines, file_extension=file_extension)
 
     # Create the individual script files
     print('%d scripts ready for writing. e.g. %s' % (batchlen, files[0]))
@@ -1060,12 +1064,15 @@ def run_simus(simulfile, params2modify, batchid='DEBUGruns',
     if len(reply)==0:
         reply='y'
     if reply=='y':
-        batchlen, nicks, batchfiles = create_batches_func(basename, localdir, commondir,
-                                                          dowrite=1, runcmd=runcmd,
-                                                          strid=strid, nickstr=nickstr,
-                                                          commentid=commentid, batchid=batchid,
-                                                          all_lines=all_lines, file_extension=file_extension,
-                                                          only_simulfiles=only_simulfiles)
+        batchlen, nicks, batchfiles = create_batches_func(
+                                          basename,
+                                          localdir,
+                                          commondir,
+                                          dowrite=1, runcmd=runcmd,
+                                          strid=strid, nickstr=nickstr,
+                                          commentid=commentid, batchid=batchid,
+                                          all_lines=all_lines, file_extension=file_extension,
+                                          only_simulfiles=only_simulfiles)
     if reply != 'y':
         return
 
@@ -1105,7 +1112,7 @@ def run_simus(simulfile, params2modify, batchid='DEBUGruns',
 
         # Check, if the log files already exist
         if not overwrite:
-            logfiles = get_logfiles(basename, params2modify, file_extension=file_extension)
+            logfiles = get_logfiles(basename, params2modify, file_extension=file_extension, localdir=localdir)
             for logfile in logfiles:
                 if not os.path.exists(logfile):
                     break
