@@ -164,11 +164,15 @@ def request_status(server_addr, program_name):
     """
     A client side program can use this method to request status.
     """
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.connect((server_addr, monitor_tcpport))
-    s.send(b'REQ#STATUS'+program_name.encode('utf-8'))
-    data = s.recv(1024)
-    s.close()
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.connect((server_addr, monitor_tcpport))
+        s.send(b'REQ#STATUS'+program_name.encode('utf-8'))
+        data = s.recv(1024)
+        s.close()
+    except Exception as e:
+        print(str(e))
+        data = None
     return data
 
 
@@ -187,22 +191,30 @@ def launch_job(server_addr, cmd):
     """
     A client side program can use this method to launch jobs.
     """
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.connect((server_addr, monitor_tcpport))
-    s.send(b'REQ#STARTJOB'+cmd.encode('utf-8'))
-    data = s.recv(1024)
-    s.close()
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.connect((server_addr, monitor_tcpport))
+        s.send(b'REQ#STARTJOB'+cmd.encode('utf-8'))
+        data = s.recv(1024)
+        s.close()
+    except Exception as e:
+        print(str(e))
+        data = None
     return data
 
 def hascoucou(server_addr, fname):
     """
     A client side program can use this method to check if slave has finished.
     """
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.connect((server_addr, monitor_tcpport))
-    s.send(b'REQ#HASCOUCOU'+fname.encode('utf-8'))
-    data = s.recv(1024)
-    s.close()
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.connect((server_addr, monitor_tcpport))
+        s.send(b'REQ#HASCOUCOU'+fname.encode('utf-8'))
+        data = s.recv(1024)
+        s.close()
+    except Exception as e:
+        print(str(e))
+        data = None
     return data
 
 
@@ -210,11 +222,15 @@ def kill_server(server_addr):
     """
     A client side program can use this method to kill the server.
     """
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.connect((server_addr, monitor_tcpport))
-    s.send(b'REQ#QUIT')
-    data = s.recv(1024)
-    s.close()
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.connect((server_addr, monitor_tcpport))
+        s.send(b'REQ#QUIT')
+        data = s.recv(1024)
+        s.close()
+    except Exception as e:
+        print(str(e))
+        data = None
     return data
 
 

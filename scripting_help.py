@@ -898,7 +898,7 @@ def gcp_launch_jobs_flex(batchnames, localdir, commondir, machinename, platformp
 
 
 
-def gcp_create_default_slavetemplate(template2create='slave-template-c1-mem6'):
+def gcp_create_default_slavetemplate(template2create='slave-template-c1-mem6', mem='6656MiB', ncpus=1):
     """
     Creates a default template for running jobs.
     """
@@ -918,8 +918,8 @@ def gcp_create_default_slavetemplate(template2create='slave-template-c1-mem6'):
             return
 
     cmd = """gcloud compute instance-templates create """+template2create+""" \
---custom-memory=6656MiB \
---custom-cpu=1 \
+--custom-memory="""+mem+""" \
+--custom-cpu="""+str(ncpus)+""" \
 --no-address \
 --preemptible \
 --image-family slave-family-1 \
