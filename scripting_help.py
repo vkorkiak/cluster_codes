@@ -940,7 +940,7 @@ EOF'"""
 def run_simus(simulfile, params2modify, batchid='DEBUGruns',
               machinename='localhost', npermachine=1, platformparams=None,
               overwrite=False, only_simulfiles=False, file_extension=None,
-              commondir=None, localdir=None):
+              commondir=None, localdir=None, runcmd=None):
     """
     Run simulations as defined in the simulation file.
 
@@ -969,9 +969,14 @@ def run_simus(simulfile, params2modify, batchid='DEBUGruns',
         commondir = extract_value(simulfile, '_commondir')
     if localdir is None:
         localdir  = extract_value(simulfile, '_localdir')
-    runcmd      = extract_value(simulfile, '_runcmd') + ' '
+    if runcmd is None:
+        runcmd      = extract_value(simulfile, '_runcmd') + ' '
     nickstr     = extract_value(simulfile, '_nickstr')
-    files2copy  = extract_value(simulfile, '_files2copy')
+    try:
+        files2copy = extract_value(simulfile, '_files2copy')
+    except:
+        files2copy = ''
+
     commentid   = extract_value(simulfile, '_commentid')
     if machinename is None:
         machinename = extract_value(simulfile, '_machinename') # try this
@@ -983,7 +988,7 @@ def run_simus(simulfile, params2modify, batchid='DEBUGruns',
     elif stridnum == 2:
         strid = '"'
     else:
-        raise(ValueError('Unknown string id: %s' % str(stridnum)))
+        raise(ValueError('Unknown string id: %s. Add _strid=1/2 in %s.' % (str(stridnum), simulfile)))
 
     print('Local directory:  %s'  % (localdir))
     print('Common directory: %s'  % (commondir))
