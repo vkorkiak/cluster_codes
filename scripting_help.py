@@ -367,13 +367,29 @@ def bare_launch_jobs(batchnames, commondir, machinename,
 
     # for i in range(0,nbatch):
     i = 0
-    while i < nbatch:
+    while np.sum(jobsdone) < nbatch:        
+        #print('np.sum(jobsdone): %d, nbatch: %d. np.sum(batchruns): %d. nsimulbatch: %d' % 
+        #      (np.sum(jobsdone), nbatch, np.sum(batchruns), nsimulbatch))
 
         # Is there space in the batch?
         # Lets wait until there is space
-        while np.sum(batchruns) >= nsimulbatch:
-            check_jobs()
+        for u in range(0, nsimulbatch):
+            if batchruns[u]:
+                # Check if the job is finished. By default, we think it is running.
+                batchruns[u] = 1
+                logname = localdir+'/'+os.path.basename(batchnames[batchinds[u]])+'.log'
+                if os.path.exists(logname):
+                    if os.system('grep COUCOU '+logname+' > /dev/null') == 0:
+                        batchruns[u] = 0
+                        # Job is done. Copy log file, if needed
+                        cmd = 'mv '+logname+' '+commondir+'/'+os.path.basename(logname)
+                        print('Moving: '+cmd)
+                        os.system(cmd)
+                        jobsdone[batchinds[u]] = 1
+
+        if np.sum(batchruns) >= nsimulbatch:
             time.sleep(2)
+            continue
 
         batchpos = np.min(np.where(batchruns == 0))
 
@@ -391,12 +407,18 @@ def bare_launch_jobs(batchnames, commondir, machinename,
             else:
                 print('%d: --- batchfile %s starts...' % (i, batchnames[i]))
                 cmd = get_batchcmd(nmachines, machinename, batchpos, batchnames[i], commondir)
-                os.system(cmd)
+                ret = os.system(cmd)
+                if ret != 0:
+                    print('Failed to run command:')
+                    print(cmd)
+                    raise(ValueError('Launch command failed.'))
                 # Wait a moment before next launch
                 time.sleep(start_delay)
 
                 batchinds[batchpos] = i
                 batchruns[batchpos] = 1
+
+        time.sleep(0.25)
         i += 1
 
     print('ALL SUBMITTED. WAITING FOR LAST JOBS TO FINISH.')
@@ -957,7 +979,8 @@ EOF'"""
 def run_simus(simulfile, params2modify, batchid='DEBUGruns',
               machinename='localhost', npermachine=1, platformparams=None,
               overwrite=False, only_simulfiles=False, file_extension=None,
-              commondir=None, localdir=None, runcmd=None):
+              commondir=None, localdir=None, runcmd=None,
+              nostop=False):
     """
     Run simulations as defined in the simulation file.
 
@@ -1081,10 +1104,12 @@ def run_simus(simulfile, params2modify, batchid='DEBUGruns',
          all_lines=all_lines, file_extension=file_extension)
 
     # Create the individual script files
-    print('%d scripts ready for writing. e.g. %s' % (batchlen, files[0]))
-    reply = input('Go on? (Y/n)?')
-    if len(reply)==0:
-        reply='y'
+    reply='y'
+    if nostop==False:
+        print('%d scripts ready for writing. e.g. %s' % (batchlen, files[0]))
+        reply = input('Go on? (Y/n)?')
+        if len(reply)==0:
+            reply='y'
     if reply=='y':
         batchlen, nicks, batchfiles = create_batches_func(
                                           basename,
@@ -1125,10 +1150,13 @@ def run_simus(simulfile, params2modify, batchid='DEBUGruns',
 
 
     # Then, we are ready to run
-    print('')
-    reply = input('Should we launch the scripts (y/N)?')
-    if len(reply)==0:
-        reply='n'
+    reply = 'y'
+    if nostop==False:
+        print('')
+        reply = input('Should we launch the scripts (y/N)?')
+        if len(reply)==0:
+            reply='n'
+
     if reply=='y':
         print("OK, let's launch the scripts...")
 
