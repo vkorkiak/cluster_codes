@@ -348,26 +348,31 @@ def bare_launch_jobs(batchnames, commondir, machinename,
                 print('batchfile %s OVERWRITING.' % (batchname))
                 os.system('rm '+logname)
 
+
+    def check_jobs():
+        for u in range(0, nsimulbatch):
+            if batchruns[u]:
+                # Check if the job is finished. By default, we think it is running.
+                batchruns[u] = 1
+                logname = localdir+'/'+os.path.basename(batchnames[batchinds[u]])+'.log'
+                if os.path.exists(logname):
+                    if os.system('grep COUCOU '+logname+' > /dev/null') == 0:
+                        batchruns[u] = 0
+                        # Job is done. Copy log file, if needed
+                        cmd = 'mv '+logname+' '+commondir+'/'+os.path.basename(logname)
+                        print('Moving: '+cmd)
+                        os.system(cmd)
+                        jobsdone[batchinds[u]] = 1
+
+
     # for i in range(0,nbatch):
     i = 0
-    while np.sum(jobsdone) < nbatch:
+    while i < nbatch:
 
         # Is there space in the batch?
         # Lets wait until there is space
         while np.sum(batchruns) >= nsimulbatch:
-            for u in range(0, nsimulbatch):
-                if batchruns[u]:
-                    # Check if the job is finished. By default, we think it is running.
-                    batchruns[u] = 1
-                    logname = localdir+'/'+os.path.basename(batchnames[batchinds[u]])+'.log'
-                    if os.path.exists(logname):
-                        if os.system('grep COUCOU '+logname+' > /dev/null') == 0:
-                            batchruns[u] = 0
-                            # Job is done. Copy log file, if needed
-                            cmd = 'mv '+logname+' '+commondir+'/'+os.path.basename(logname)
-                            print('Moving: '+cmd)
-                            os.system(cmd)
-                            jobsdone[batchinds[u]] = 1
+            check_jobs()
             time.sleep(2)
 
         batchpos = np.min(np.where(batchruns == 0))
@@ -393,6 +398,18 @@ def bare_launch_jobs(batchnames, commondir, machinename,
                 batchinds[batchpos] = i
                 batchruns[batchpos] = 1
         i += 1
+
+    print('ALL SUBMITTED. WAITING FOR LAST JOBS TO FINISH.')
+
+    # Wait until all jobs are done
+    while np.sum(jobsdone) < nbatch:
+        #print('nbatch')        #print(nbatch)
+        #print('jobsdone')      #print(jobsdone)
+        check_jobs()
+        time.sleep(2)
+
+    print('ALL DONE.')
+
 
 
 
